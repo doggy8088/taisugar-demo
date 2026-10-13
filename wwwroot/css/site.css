@@ -6,3 +6,11 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
 .sidebar{overflow-y:auto}.sidebar-bottom{flex-shrink:0}
+
+.chart-bars{min-width:0}.bar-pair{min-width:0}.nav-backdrop,.sidebar-close{display:none}
+@media(max-width:760px){
+ .nav-open .app-shell{margin-left:0;min-width:0}
+ .nav-open .nav-backdrop{display:block;position:fixed;inset:0;background:#10293166;border:0;z-index:35}
+ .sidebar-close{display:block;position:absolute;right:8px;top:8px;width:34px;height:34px;background:transparent;color:#bcd1d4;border:0;font-size:24px}
+ .field input,.field select,.field textarea{font-size:16px}
+}
