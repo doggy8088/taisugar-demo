@@ -38,7 +38,7 @@ public class ManageController(AppDbContext db) : Controller {
  [HttpPost("generate")]
  public async Task<IActionResult> Generate(string module,string month) {
   if(module!="invoices")return NotFound();
-  if(!DateTime.TryParseExact(month,"yyyy-MM",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.None,out var period)) {TempData["Error"]="請選擇正確的計費月份。";return RedirectToAction(nameof(Index),new{module});}
+  if(!DateTime.TryParseExact(month,"yyyy-MM",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.None,out var period)||period.Year<1900||period.Year>2100) {TempData["Error"]="請選擇正確的計費月份。";return RedirectToAction(nameof(Index),new{module});}
   await using var transaction=await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
   var leases=await db.Leases.Where(x=>x.Status=="有效"&&x.StartDate<period.AddMonths(1)&&x.EndDate>=period).ToListAsync();int count=0;
   foreach(var lease in leases) {

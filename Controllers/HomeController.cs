@@ -8,7 +8,7 @@ namespace PropertyManagement.Controllers;
 public class HomeController(AppDbContext db) : Controller {
  public async Task<IActionResult> Index(string? month) {
   var today=Business.Today;var selected=new DateTime(today.Year,today.Month,1);
-  if(month!=null&&DateTime.TryParseExact(month,"yyyy-MM",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.None,out var parsed))selected=parsed;
+  if(month!=null&&DateTime.TryParseExact(month,"yyyy-MM",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.None,out var parsed)&&parsed.Year>=1900&&parsed.Year<=2100)selected=parsed;
   var assets=await db.Assets.AsNoTracking().ToListAsync();var units=await db.Units.AsNoTracking().ToListAsync();
   var leases=await db.Leases.AsNoTracking().ToListAsync();var tenants=await db.Tenants.AsNoTracking().ToListAsync();
   var invoices=await db.Invoices.AsNoTracking().Where(x=>x.Status=="啟用").ToListAsync();

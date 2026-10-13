@@ -52,6 +52,7 @@ public class ModuleService<T>(AppDbContext db,Module module) : IModuleService wh
   var result=await Model(record); result.Id=id;
   if(id!=0 && form["Version"]!=record.Version) {result.Errors.Add("其他人已修改此筆資料，請重新開啟後再編輯。");return result;}
   var original=new T(); db.Entry(original).CurrentValues.SetValues(record);
+  var lookups=await Lookup.All(db);
   foreach(var f in module.Fields) {
    var raw=form[f.Key].ToString().Trim();result.Values[f.Key]=raw;
    if(f.Required&&raw.Length==0){result.Errors.Add($"請填寫{f.Label}。");continue;}
@@ -62,7 +63,8 @@ public class ModuleService<T>(AppDbContext db,Module module) : IModuleService wh
     prop.SetValue(record,value);
     if(value is decimal number && (number<0||number>999999999m||decimal.Round(number,2)!=number)) result.Errors.Add($"{f.Label}須為 0 至 999,999,999，且最多兩位小數。");
     if(f.Choices!=null&&!f.Choices.Contains(raw)) result.Errors.Add($"{f.Label}選項無效。");
-    if(f.Reference!=null&&(!int.TryParse(raw,out var fk)||!(await Lookup.All(db))[f.Reference].ContainsKey(fk)))result.Errors.Add($"請選擇有效的{f.Label}。");
+    if(f.Reference!=null&&(!int.TryParse(raw,out var fk)||!lookups[f.Reference].ContainsKey(fk)))result.Errors.Add($"請選擇有效的{f.Label}。");
+    if(value is DateTime date&&(date.Year<1900||date.Year>2100))result.Errors.Add($"{f.Label}年份須介於 1900 至 2100 年。");
     if(f.Kind=="email"&&raw.Length>0&&!new EmailAddressAttribute().IsValid(raw))result.Errors.Add("電子信箱格式不正確。");
    }catch(Exception ex) when(ex is FormatException or OverflowException or ArgumentException){result.Errors.Add($"{f.Label}格式不正確。");}
   }

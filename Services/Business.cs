@@ -6,6 +6,8 @@ public static class Business {
  public static DateTime Today=>TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei")).Date;
  public static async Task<List<string>> Validate(AppDbContext db,Record record,Record? original) {
   List<string> errors=[];
+  foreach(var property in record.GetType().GetProperties().Where(p=>p.PropertyType==typeof(decimal)&&p.Name is "Rent" or "Deposit" or "Amount"))
+   if(property.GetValue(record) is decimal money && decimal.Truncate(money)!=money)errors.Add("租金、押金、應收與收款金額以整數元記錄。");
   switch(record) {
    case Lease l:
     if(l.EndDate<l.StartDate)errors.Add("到期日不得早於起租日。");
@@ -21,16 +23,27 @@ public static class Business {
     break;
    case Tenant t:
     if(t.TaxId.Length>0&&(t.TaxId.Length!=8||!t.TaxId.All(char.IsAsciiDigit)))errors.Add("統一編號須為 8 位數字。");break;
+   case Asset a:
+    if(a.Status!="啟用" && await db.Leases.AnyAsync(l=>l.Status=="有效"&&l.EndDate>=Today&&db.Units.Any(u=>u.Id==l.UnitId&&u.AssetId==a.Id)))errors.Add("此資產仍有有效租約，請先終止相關租約再停用或轉維修。");
+    break;
+   case Meter m:
+    if(original is Meter om&&om.UnitId!=m.UnitId&&await db.Readings.AnyAsync(x=>x.MeterId==m.Id))errors.Add("已有抄表紀錄的水電表不可更換所屬單位；請停用並建立新表。");
+    break;
    case Reading r:
     if(r.Current<r.Previous)errors.Add("本次讀數不得小於前次讀數；換表請建立新水電表。");
     r.Amount=Math.Round((r.Current-r.Previous)*r.Rate,0,MidpointRounding.AwayFromZero);
+    if(r.Amount>999999999m)errors.Add("計算後費用超過金額上限 999,999,999 元。");
     if(await db.Readings.AnyAsync(x=>x.Id!=r.Id&&x.MeterId==r.MeterId&&x.ReadDate==r.ReadDate))errors.Add("同一水電表同一天已有抄表紀錄。");break;
    case Invoice i:
     i.Period=new DateTime(i.Period.Year,i.Period.Month,1);
+    var invoiceLease=await db.Leases.AsNoTracking().FirstAsync(x=>x.Id==i.LeaseId);
+    if(invoiceLease.Status=="草稿")errors.Add("草稿租約不可建立帳款。");
+    if(i.Kind=="租金"&&(i.Period>invoiceLease.EndDate||i.Period.AddMonths(1)<=invoiceLease.StartDate))errors.Add("租金月份必須與租約期間重疊。");
     if(i.Amount<=0)errors.Add("應收金額必須大於零。");
     if(await db.Invoices.AnyAsync(x=>x.Id!=i.Id&&x.LeaseId==i.LeaseId&&x.Kind==i.Kind&&x.Period==i.Period))errors.Add("此租約同月份已有相同類型的帳款。");
     if(original is Invoice oi&&await db.Payments.AnyAsync(x=>x.InvoiceId==i.Id)&&(i.Amount!=oi.Amount||i.LeaseId!=oi.LeaseId||i.Kind!=oi.Kind||i.Period!=oi.Period||i.Status!=oi.Status))errors.Add("此帳款已有收款紀錄，不可更改金額、歸屬或作廢。");break;
    case Payment p:
+    if(p.PaidDate>Today)errors.Add("收款日期不可晚於今天。");
     if(p.Amount<=0)errors.Add("收款金額必須大於零。");
     var invoice=await db.Invoices.AsNoTracking().FirstAsync(x=>x.Id==p.InvoiceId);
     if(p.Status=="啟用") {
@@ -40,6 +53,7 @@ public static class Business {
     }
     if(original is Payment op&&(op.InvoiceId!=p.InvoiceId||op.Amount!=p.Amount||op.PaidDate!=p.PaidDate))errors.Add("已登錄收款不可改寫金額、帳款歸屬或日期；請作廢原紀錄再新增。");break;
    case Unit u:
+    if(u.Status!="啟用"&&await db.Leases.AnyAsync(x=>x.UnitId==u.Id&&x.Status=="有效"&&x.EndDate>=Today))errors.Add("此單位仍有有效租約，請先終止租約再變更使用狀態。");
     if(original is Unit ou&&ou.AssetId!=u.AssetId&&await db.Leases.AnyAsync(x=>x.UnitId==u.Id))errors.Add("已有租約的出租單位不可變更所屬資產。");break;
   }
   return errors;
