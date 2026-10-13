@@ -14,3 +14,52 @@
  .sidebar-close{display:block;position:absolute;right:8px;top:8px;width:34px;height:34px;background:transparent;color:#bcd1d4;border:0;font-size:24px}
  .field input,.field select,.field textarea{font-size:16px}
 }
+
+/* Dashboard motion preserves final server-rendered geometry and readable values. */
+.dashboard-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+.dashboard-actions .button{margin-top:0}
+.replay-motion[hidden],.trend-values[hidden],.trend-invitation[hidden]{display:none}
+.replay-motion span{display:inline-block;font-size:19px;line-height:1}
+.count-up{position:relative;display:inline-block;font-variant-numeric:tabular-nums}
+.count-current{display:none}
+.count-up.is-counting .count-final{opacity:0}
+.count-up.is-counting .count-current{display:block;position:absolute;inset:0;white-space:nowrap}
+.chart-group{border:0;padding:0;background:transparent;color:inherit;font:inherit;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.chart-group .bar{display:block;transform-origin:center bottom;transition:filter .25s,box-shadow .25s}
+.chart-group .month-label{transition:color .2s}
+.chart-group:hover .received,.chart-group:focus-visible .received,.chart-group.is-selected .received{filter:brightness(1.12);box-shadow:0 0 0 3px #4f8e791a,0 5px 17px #4f8e7925}
+.chart-group:hover .month-label,.chart-group:focus-visible .month-label,.chart-group.is-selected .month-label{color:#287260;font-weight:650}
+.trend-detail{display:flex;align-items:center;gap:9px;margin:16px 23px 0;padding:10px 12px;background:#f3f7f4;border:1px solid #e6eee8;border-radius:8px;min-height:43px}
+.detail-spark{color:#77a18b;font-size:16px}
+.trend-invitation{font-size:10px;color:#698276;margin:0}
+.trend-values{display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:10px;color:#7b8f85}
+.trend-values>strong{font-size:11px;color:#3b6250}
+.trend-values b{font-weight:600;color:#436357;font-variant-numeric:tabular-nums}
+.trend-values span:last-child b{color:#207565}
+.donut{position:relative;background:none;padding:0;transform:none}
+.donut>div{position:absolute;inset:14px;transform:none}
+.occupancy-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform:rotate(-90deg);stroke-width:13}
+.ring-track{stroke:#e8efeb;fill:none}
+.ring-progress{stroke:#4f8e79;stroke-linecap:round;fill:none}
+.donut strong span{font:inherit;color:inherit}
+.occupancy-note{max-width:235px;margin:0 auto 17px;padding:0 10px;text-align:center;color:#759080;font-size:10px;line-height:1.8}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+ .stat-card{transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s}
+ .stat-card:hover{transform:translateY(-3px);box-shadow:0 9px 22px #20333b09}
+}
+@media(max-width:760px){
+ .dashboard-actions{width:100%;justify-content:space-between;gap:10px}
+ .dashboard-actions .month-select{width:auto;flex-wrap:wrap;gap:6px}
+ .dashboard-actions .month-select label{display:none}
+ .replay-motion{font-size:10px;padding:7px 10px}
+ .trend-detail{margin-inline:16px;align-items:flex-start}
+ .trend-values{gap:4px 12px}
+ .trend-values>strong{flex-basis:100%}
+}
+@media(prefers-reduced-motion:reduce){
+ .replay-motion{display:none}
+ .count-up.is-counting .count-final{opacity:1}
+ .count-up.is-counting .count-current{display:none}
+}
+.chart-group>.bar-pair{height:calc(100% - 26px);padding:0}
+.donut>div{height:auto}
