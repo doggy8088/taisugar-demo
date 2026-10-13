@@ -1,29 +1,21 @@
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-builder.Services.AddControllersWithViews();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+using System.Globalization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using PropertyManagement.Data;
+var builder=WebApplication.CreateBuilder(args);
+builder.Services.AddControllersWithViews(options=>options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute()));
+var dataDirectory=Path.Combine(builder.Environment.ContentRootPath,"App_Data");Directory.CreateDirectory(dataDirectory);
+builder.Services.AddDbContext<AppDbContext>(options=>options.UseSqlite(builder.Configuration.GetConnectionString("PropertyDb")??$"Data Source={Path.Combine(dataDirectory,"property.db")}"));
+var app=builder.Build();
+CultureInfo.DefaultThreadCurrentCulture=CultureInfo.GetCultureInfo("zh-TW");
+CultureInfo.DefaultThreadCurrentUICulture=CultureInfo.GetCultureInfo("zh-TW");
+if(!app.Environment.IsDevelopment())app.UseExceptionHandler("/Home/Error");
+app.UseStaticFiles();app.UseRouting();
+app.MapControllerRoute("default","{controller=Home}/{action=Index}/{id?}");
+using(var scope=app.Services.CreateScope()) {
+ var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+ db.Database.EnsureCreated();
+ if(app.Environment.IsDevelopment()&&builder.Configuration.GetValue("SeedDemoData",true))SeedData.Initialize(db);
 }
-
-app.UseHttpsRedirection();
-app.UseRouting();
-
-app.UseAuthorization();
-
-app.MapStaticAssets();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
-
-
 app.Run();
+public partial class Program;
