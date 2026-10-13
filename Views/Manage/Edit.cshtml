@@ -1,0 +1,18 @@
+@model EditModel
+@{var m=Model.Module;ViewData["Title"]=(Model.Id==0?"新增":"編輯")+m.Singular;}
+<a class="back-link" href="/manage/@(m.Key)">← 返回@(m.Title)</a>
+<section class="page-heading"><div><div class="eyebrow">PROPERTY OPERATIONS</div><h1>@ViewData["Title"]</h1><p>完整且正確的資料，是安心管理的開始。</p></div><span class="form-caption">標記 <b>*</b> 為必填欄位</span></section>
+<div class="form-layout"><section class="panel form-panel">
+<div class="panel-heading"><h2>基本資料</h2><span class="muted">@(m.Singular)設定</span></div>
+@if(Model.Errors.Count>0){<div class="notice error form-errors" role="alert" tabindex="-1"><strong>請修正以下資料後再儲存</strong><ul>@foreach(var e in Model.Errors.Distinct()){<li>@e</li>}</ul></div>}
+<form method="post" action="/manage/@(m.Key)/save/@Model.Id" class="editor">@Html.AntiForgeryToken()<input type="hidden" name="Version" value="@Model.Version"/>
+<div class="form-grid">
+@foreach(var f in m.Fields){<div class="field @(f.Kind=="textarea"?"full":"")"><label for="@f.Key">@f.Label @if(f.Required){<span class="required" aria-label="必填">*</span>}</label>
+@if(f.Kind=="select"||f.Kind=="reference"){
+<select id="@f.Key" name="@f.Key" required="@f.Required"><option value="">請選擇@f.Label</option>@if(f.Choices!=null){foreach(var choice in f.Choices){<option value="@choice" selected="@(Model.Value(f.Key)==choice)">@choice</option>}}else if(Model.Options.TryGetValue(f.Key,out var options)){foreach(var option in options){<option value="@option.Value" selected="@(Model.Value(f.Key)==option.Value)">@option.Label</option>}}</select>
+@if(f.Reference!=null){<small>找不到資料？<a href="/manage/@f.Reference/create">新增相關資料</a>（離開前請先儲存）</small>}
+}else if(f.Kind=="textarea"){<textarea id="@f.Key" name="@f.Key" rows="4" maxlength="2000">@Model.Value(f.Key)</textarea>}
+else{<input id="@f.Key" name="@f.Key" type="@(f.Kind=="integer"?"number":f.Kind)" value="@Model.Value(f.Key)" required="@f.Required" maxlength="@(f.Key=="Code"?40:f.Key=="Name"?120:2000)" min="@(f.Kind is "number" or "integer"?"0":null)" step="@(f.Kind=="integer"?"1":f.Kind=="number"?"0.01":null)"/>}
+</div>}
+</div><div class="form-buttons"><a href="/manage/@(m.Key)" class="button secondary">取消</a><button type="submit" class="button primary">儲存@(m.Singular) <span>→</span></button></div></form>
+</section><aside class="form-aside"><div class="aside-icon"><svg><use href="#i-@(m.Icon)"/></svg></div><h3>資料維護提醒</h3><p>編號必須唯一。儲存前請確認必填資訊與關聯資料。</p>@if(m.Key=="leases"){<p>租金以新台幣、每月計費。未滿月按當月天數比例計算，押金獨立記錄。</p><p>已出帳租約的計費條件會保留，續約請建立新租約。</p>}else if(m.Key=="payments"){<p>收款可分次登錄，但累計金額不可超過應收。更正金額時，請作廢原紀錄後新增。</p>}else if(m.Key=="readings"){<p>費用＝（本次讀數－前次讀數）× 本期單價。按元四捨五入。</p>}else{<p>已被其他資料使用的紀錄，請透過停用或作廢保留歷史。</p>}<hr/><small>資料會儲存於資料庫，重新整理後仍可查閱。</small></aside></div>

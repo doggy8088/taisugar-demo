@@ -1,0 +1,4 @@
+@model EditModel
+@{ViewData["Title"]="刪除確認";var m=Model.Module;}
+<a class="back-link" href="/manage/@(m.Key)">← 返回@(m.Title)</a>
+<section class="delete-panel panel"><span class="delete-symbol">!</span><h1>確認刪除這筆@(m.Singular)？</h1><p>請先確認資料。刪除後無法復原。</p><div class="delete-record"><strong>@Model.Value("Name")</strong><span>@Model.Value("Code")</span></div><p class="muted">已有關聯資料或屬於帳務紀錄時，系統將保留資料並提示改用停用或作廢。</p><form method="post" action="/manage/@(m.Key)/delete/@Model.Id">@Html.AntiForgeryToken()<input type="hidden" name="version" value="@Model.Version"/><a class="button secondary" href="/manage/@(m.Key)">保留資料</a><button class="button danger" type="submit">確認刪除</button></form></section>
