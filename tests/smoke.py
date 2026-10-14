@@ -110,6 +110,17 @@ def main():
                 '/js/body-regions.mjs', '/vendor/three/loaders/GLTFLoader.js',
                 '/vendor/three/utils/BufferGeometryUtils.js', '/vendor/three/utils/SkeletonUtils.js']),
                 '人體模型載入器與全部相依模組可供瀏覽器讀取')
+            with opener.open(base + '/models/human/skeleton.glb', timeout=15) as skeleton_response:
+                skeleton_bytes = skeleton_response.read()
+            skeleton_json_size = int.from_bytes(skeleton_bytes[12:16], 'little')
+            skeleton_data = json.loads(skeleton_bytes[20:20+skeleton_json_size])
+            skeleton_names = {node.get('name') for node in skeleton_data['nodes'] if 'mesh' in node}
+            check(skeleton_bytes[:4] == b'glTF' and {'cranium', 'mandible', 'sternum', 'sacrum',
+                'left-pelvis', 'right-pelvis', 'left-radius', 'left-ulna', 'right-radius', 'right-ulna'} <= skeleton_names,
+                '骨架具備獨立頭顱、下顎、胸骨、骨盆與成對前臂骨骼')
+            check(all(f'{side}-rib-{i}' in skeleton_names for side in ['left','right'] for i in range(1,13))
+                and all(f'vertebra-{i}' in skeleton_names for i in range(1,25)),
+                '骨架包含十二對肋骨與二十四節頸胸腰椎')
             for module in ['assets','units','tenants','leases','meters','readings','invoices','payments','einvoices']:
                 check(request('/manage/'+module)[0] == 200, f'{module} list renders')
                 form(module)

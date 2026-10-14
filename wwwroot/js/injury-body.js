@@ -159,60 +159,44 @@ async function renderBody(THREE, OrbitControls, GLTFLoader, parts, state, select
     let motion;
     let height = 8.35;
     let disposed = false;
-    const model = await new GLTFLoader().loadAsync('/models/human/body.glb');
-    model.scene.updateMatrixWorld(true);
-    model.scene.traverse(source => {
-        if (!source.isMesh) return;
-        const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld);
-        const position = geometry.attributes.position;
-        const regionIds = [];
-        const point = new THREE.Vector3();
-        for (let i = 0; i < position.count; i++) {
-            point.fromBufferAttribute(position, i);
-            const part = pickBodyRegion(point, parts);
-            regionIds.push(part?.id);
-            if (part) {
-                const entry = centers.get(part.id) ?? { sum: new THREE.Vector3(), count: 0 };
-                entry.sum.add(point);entry.count++;centers.set(part.id, entry);
+    const loader = new GLTFLoader();
+    const [body, bones] = await Promise.all([
+        loader.loadAsync('/models/human/body.glb'),
+        loader.loadAsync('/models/human/skeleton.glb')
+    ]);
+    function addModel(model, isSkeleton) {
+        model.scene.updateMatrixWorld(true);
+        model.scene.traverse(source => {
+            if (!source.isMesh) return;
+            const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld);
+            const position = geometry.attributes.position;
+            const regionIds = [];
+            const point = new THREE.Vector3();
+            for (let i = 0; i < position.count; i++) {
+                point.fromBufferAttribute(position, i);
+                const part = pickBodyRegion(point, parts);
+                regionIds.push(part?.id);
+                if (part && !isSkeleton) {
+                    const entry = centers.get(part.id) ?? { sum: new THREE.Vector3(), count: 0 };
+                    entry.sum.add(point);entry.count++;centers.set(part.id, entry);
+                }
             }
-        }
-        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(position.count * 3), 3));
-        const material = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .66, metalness: 0, transparent: true });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.userData.regionIds = regionIds;
-        mesh.userData.eye = source.name.includes('eye');
-        mesh.castShadow = true;mesh.receiveShadow = true;
-        scene.add(mesh);meshes.push(mesh);
-    });
+            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(position.count * 3), 3));
+            const material = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .66, metalness: 0, transparent: true });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.userData.regionIds = regionIds;
+            mesh.userData.eye = source.name.includes('eye');
+            mesh.userData.skeleton = isSkeleton;
+            mesh.renderOrder = isSkeleton ? 1 : 2;
+            mesh.castShadow = true;mesh.receiveShadow = true;
+            scene.add(mesh);meshes.push(mesh);
+        });
+    }
+    addModel(body, false);
+    addModel(bones, true);
     centers.forEach(entry => entry.sum.divideScalar(entry.count));
     const ground = new THREE.Mesh(new THREE.CircleGeometry(1.1, 64), new THREE.MeshStandardMaterial({ color: 0xdce5d4, roughness: 1, transparent: true, opacity: .65 }));
     ground.rotation.x = -Math.PI / 2;ground.position.y = .30;ground.receiveShadow = true;scene.add(ground);
-    const skeleton = new THREE.Group();scene.add(skeleton);
-    const boneMaterial = new THREE.MeshStandardMaterial({ color: 0xe9ddbb, roughness: .65 });
-    function bone(a, b, radius = .06) {
-        const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b), delta = to.clone().sub(from);
-        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * .8, delta.length(), 10), boneMaterial);
-        mesh.position.copy(from.add(to).multiplyScalar(.5));
-        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
-        skeleton.add(mesh);
-    }
-    bone([0, 4, -.08], [0, 6.15, -.08], .095);
-    for (const sign of [-1, 1]) {
-        bone([0, 5.9, 0], [sign * .77, 5.94, 0]);
-        bone([sign * .77, 5.94, 0], [sign * .984, 5.066, 0]);
-        bone([sign * .984, 5.066, 0], [sign * 1.098, 4.12, 0], .045);
-        bone([sign * .4, 4.0, 0], [sign * .757, 2.234, 0], .075);
-        bone([sign * .757, 2.234, 0], [sign * .757, .627, 0], .06);
-        bone([sign * .757, .627, 0], [sign * .757, .45, .4], .045);
-    }
-    for (let i = 0; i < 6; i++) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(.48 - i * .022, .025, 8, 40), boneMaterial);
-        ring.rotation.x = Math.PI / 2;ring.scale.y = .6;ring.position.y = 5.77 - i * .14;skeleton.add(ring);
-    }
-    const skull = new THREE.Mesh(new THREE.SphereGeometry(.31, 20, 16), boneMaterial);
-    skull.scale.y = 1.2;skull.position.set(0, 6.83, 0);skeleton.add(skull);
-    skeleton.visible = false;
-
     function createLabels() {
         labelRoot.replaceChildren();leaderRoot.replaceChildren();labels.length = 0;
         const candidates = parts.filter(part => state.group ? part.group === state.group : part.overview || selected.has(part.id));
@@ -285,20 +269,21 @@ async function renderBody(THREE, OrbitControls, GLTFLoader, parts, state, select
         camera.updateProjectionMatrix();requestDraw();
     }
     function update() {
-        skeleton.visible = state.skeleton;
         const color = new THREE.Color();
         const partMap = new Map(parts.map(part => [part.id, part]));
         meshes.forEach(mesh => {
+            const isSkeleton = mesh.userData.skeleton;
+            mesh.visible = !isSkeleton || state.skeleton;
             const colors = mesh.geometry.attributes.color;
             mesh.userData.regionIds.forEach((id, index) => {
                 const part = partMap.get(id);
                 const filtered = part && ((state.group && state.group !== part.group) || (state.side && state.side !== part.side));
-                color.set(selected.has(id) ? 0xbb6348 : hoverId === id ? 0x88a993 : filtered ? 0xc9cdc7 : mesh.userData.eye ? 0x7c817b : 0xc6b49c);
+                color.set(selected.has(id) ? 0xbb6348 : hoverId === id ? 0x88a993 : filtered ? 0xc9cdc7 : isSkeleton ? 0xe7d9ba : mesh.userData.eye ? 0x7c817b : 0xc6b49c);
                 colors.setXYZ(index, color.r, color.g, color.b);
             });
             colors.needsUpdate = true;
-            mesh.material.opacity = state.skeleton ? .18 : 1;
-            mesh.material.depthWrite = !state.skeleton;
+            mesh.material.opacity = state.skeleton && !isSkeleton ? .045 : 1;
+            mesh.material.depthWrite = isSkeleton || !state.skeleton;
         });
         createLabels();requestDraw();
     }
@@ -320,7 +305,7 @@ async function renderBody(THREE, OrbitControls, GLTFLoader, parts, state, select
     function hit(event) {
         const rect = canvas.getBoundingClientRect();pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
         raycaster.setFromCamera(pointer, camera);
-        const intersection = raycaster.intersectObjects(meshes)[0];
+        const intersection = raycaster.intersectObjects(meshes.filter(mesh => mesh.userData.skeleton === state.skeleton))[0];
         if (!intersection) return;
         const part = pickBodyRegion(intersection.point, parts);
         return part && (!state.group || part.group === state.group) && (!state.side || part.side === state.side) ? part : undefined;
@@ -347,7 +332,7 @@ async function renderBody(THREE, OrbitControls, GLTFLoader, parts, state, select
         if (event.persisted) return;
         disposed = true;cancelAnimationFrame(frame);observer.disconnect();controls.dispose();
         meshes.forEach(mesh => { mesh.material.dispose();mesh.geometry.dispose(); });
-        skeleton.children.forEach(mesh => mesh.geometry.dispose());boneMaterial.dispose();ground.geometry.dispose();ground.material.dispose();renderer.dispose();
+        ground.geometry.dispose();ground.material.dispose();renderer.dispose();
     });
     resize();
     return { update, focus, zoom(factor) { camera.zoom = Math.max(.7, Math.min(4, camera.zoom * factor));camera.updateProjectionMatrix();requestDraw(); } };
