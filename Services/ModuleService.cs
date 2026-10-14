@@ -85,7 +85,7 @@ public class ModuleService<T>(AppDbContext db,Module module) : IModuleService wh
   var record=await db.Set<T>().FirstOrDefaultAsync(x=>x.Id==id);if(record==null)return "資料已不存在。";
   if(record.Version!=version)return "資料已變更，請重新確認後再刪除。";
   // Financial history is retained; reversal is available through status changes.
-  if(record is Payment or Invoice or Reading)return "帳務與抄表紀錄保留歷史，請使用編輯功能將狀態改為作廢或停用。";
+  if(record is Payment or Invoice or Reading or EInvoice)return "帳務與抄表紀錄保留歷史，請使用編輯功能將狀態改為作廢或停用。";
   db.Remove(record);
   try {await db.SaveChangesAsync();await transaction.CommitAsync();return null;}catch(DbUpdateException){return "此資料已有關聯紀錄，無法刪除。請改為停用或終止，保留歷史資料。";}
  }

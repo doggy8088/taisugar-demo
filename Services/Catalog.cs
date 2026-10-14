@@ -15,7 +15,8 @@ public static class Catalog {
  M<Meter>("meters","水電資料","水電表","維護水電表、戶號與各單位的計費單價。","bolt",[R("UnitId","出租單位","units"),S("Kind","表計類型","電表","水表"),F("Account","水電戶號"),F("Rate","單價（NT$／度）","number")],["UnitId","Kind","Rate"]),
  M<Reading>("readings","抄表紀錄","抄表紀錄","保留每期讀數，依當期單價計算水電費用。","gauge",[R("MeterId","水電表","meters"),F("ReadDate","抄表日期","date"),F("Previous","前次讀數","number"),F("Current","本次讀數","number"),F("Rate","本期單價（NT$／度）","number")],["MeterId","ReadDate","Amount"]),
  M<Invoice>("invoices","應收帳款","應收帳款","每筆費用都有依據，未收餘額一目瞭然。","wallet",[R("LeaseId","租約","leases"),S("Kind","費用類型","租金","水費","電費","管理費","其他"),F("Period","帳款所屬月份","month"),F("DueDate","繳款期限","date"),F("Amount","應收金額（NT$）","number")],["Period","Amount","Balance"],["啟用","作廢"]),
- M<Payment>("payments","收款紀錄","收款紀錄","逐筆登錄實際入帳，自動更新應收餘額。","receipt",[R("InvoiceId","對應應收帳款","invoices"),F("PaidDate","收款日期","date"),F("Amount","收款金額（NT$）","number"),S("Method","收款方式","銀行轉帳","現金","支票","其他"),F("Reference","交易參考號","text",false)],["InvoiceId","PaidDate","Amount"],["啟用","作廢"])
+ M<Payment>("payments","收款紀錄","收款紀錄","逐筆登錄實際入帳，自動更新應收餘額。","receipt",[R("InvoiceId","對應應收帳款","invoices"),F("PaidDate","收款日期","date"),F("Amount","收款金額（NT$）","number"),S("Method","收款方式","銀行轉帳","現金","支票","其他"),F("Reference","交易參考號","text",false)],["InvoiceId","PaidDate","Amount"],["啟用","作廢"]),
+ M<EInvoice>("einvoices","電子發票","電子發票","開立與管理台灣雲端電子發票，自動拆算 5% 營業稅與字軌檢核。","invoice",[R("InvoiceId","對應應收帳款","invoices"),F("TrackNumber","發票字軌號碼"),F("IssuedDate","開立日期","date"),S("Category","發票類別","B2B 存證","B2C 存證"),S("TaxType","課稅別","應稅","零稅率","免稅"),F("BuyerTaxId","買方統一編號","text",false),S("CarrierType","載具類別","無載具","手機條碼","自然人憑證","會員載具"),F("CarrierId","載具號碼","text",false),F("DonateCode","愛心碼","text",false),F("RandomCode","四碼隨機碼"),F("Amount","發票總額（含稅 NT$）","number")],["TrackNumber","BuyerTaxId","SalesAmount","TaxAmount","Amount"],["啟用","作廢"])
  ];
  public static Module? Find(string key)=>All.FirstOrDefault(x=>x.Key==key);
  public static string MaskName(string? value) {
@@ -38,6 +39,7 @@ public class ListModel {
   var f=Module.Fields.FirstOrDefault(x=>x.Key==key); var v=row.GetType().GetProperty(key)?.GetValue(row);
   if(f?.Reference is {} reference && v is int id) return Lookups.GetValueOrDefault(reference)?.GetValueOrDefault(id)??"—";
   if(row is Tenant && key=="Contact") return Catalog.MaskName(v as string);
+  if(row is EInvoice && key=="BuyerTaxId" && string.IsNullOrEmpty(v as string)) return "—";
   if(v is DateTime date) return date.ToString(key=="Period"?"yyyy-MM":"yyyy/MM/dd");
   if(v is decimal number) return number.ToString(key is "Area" or "Rate"?"N2":"N0");
   return v?.ToString()??"—";

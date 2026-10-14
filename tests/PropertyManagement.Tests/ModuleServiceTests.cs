@@ -251,25 +251,31 @@ public class ModuleServiceTests
         var tenant = new Tenant { Id = 4, Code = "TNT-01", Name = "租戶", Version = "v4" };
         var lease = new Lease { Id = 5, Code = "LSE-01", Name = "租約", UnitId = 3, TenantId = 4, Rent = 10000m, Version = "v5" };
         var invoice = new Invoice { Id = 6, Code = "INV-01", Name = "帳款", LeaseId = 5, Amount = 10000m, Version = "v6" };
+        var eInvoice = new EInvoice { Id = 7, Code = "EINV-01", Name = "發票", InvoiceId = 6, TrackNumber = "AB-12345678", Amount = 10000m, Version = "v7" };
         db.Assets.AddRange(assetWithUnit, standaloneAsset);
         db.Units.Add(unit);
         db.Tenants.Add(tenant);
         db.Leases.Add(lease);
         db.Invoices.Add(invoice);
+        db.EInvoices.Add(eInvoice);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
         var assetService = new ModuleService<Asset>(db, Catalog.Find("assets")!);
         var invService = new ModuleService<Invoice>(db, Catalog.Find("invoices")!);
+        var einvService = new ModuleService<EInvoice>(db, Catalog.Find("einvoices")!);
 
         // 不存在資料與版本不符
         Assert.Equal("資料已不存在。", await assetService.Delete(999, "v1"));
         Assert.Equal("資料已變更，請重新確認後再刪除。", await assetService.Delete(2, "wrong-version"));
 
-        // 帳務與抄表不可實體刪除
+        // 帳務與抄表（含電子發票）不可實體刪除
         Assert.Equal(
             "帳務與抄表紀錄保留歷史，請使用編輯功能將狀態改為作廢或停用。",
             await invService.Delete(6, "v6"));
+        Assert.Equal(
+            "帳務與抄表紀錄保留歷史，請使用編輯功能將狀態改為作廢或停用。",
+            await einvService.Delete(7, "v7"));
 
         // 有關聯紀錄不可刪除
         Assert.Equal(

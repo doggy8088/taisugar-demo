@@ -66,3 +66,18 @@ public class Payment : Record {
  public string Method { get; set; } = "銀行轉帳";
  public string Reference { get; set; } = "";
 }
+public class EInvoice : Record {
+ public int InvoiceId { get; set; }
+ public string TrackNumber { get; set; } = "";
+ public DateTime IssuedDate { get; set; } = DateTime.Today;
+ public string Category { get; set; } = "B2B 存證";
+ public string TaxType { get; set; } = "應稅";
+ public string BuyerTaxId { get; set; } = "";
+ public string CarrierType { get; set; } = "無載具";
+ public string CarrierId { get; set; } = "";
+ public string DonateCode { get; set; } = "";
+ public string RandomCode { get; set; } = "0000";
+ public decimal SalesAmount { get; set; }
+ public decimal TaxAmount { get; set; }
+ public decimal Amount { get; set; }
+}

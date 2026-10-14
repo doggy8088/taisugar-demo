@@ -15,6 +15,7 @@ app.MapControllerRoute("default","{controller=Home}/{action=Index}/{id?}");
 using(var scope=app.Services.CreateScope()) {
  var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
  db.Database.EnsureCreated();
+ SeedData.EnsureSchema(db);
  if(app.Environment.IsDevelopment()&&builder.Configuration.GetValue("SeedDemoData",true))SeedData.Initialize(db);
 }
 app.Run();

@@ -579,4 +579,230 @@ public class BusinessTests
         };
         Assert.Empty(await Business.Validate(db, voidedPayment, payment));
     }
+
+    [Theory]
+    [InlineData("AB-12345678", "AB-12345678")]
+    [InlineData("ab12345678", "AB-12345678")]
+    [InlineData(" tw-87654321 ", "TW-87654321")]
+    [InlineData("A-12345678", "")]
+    [InlineData("ABC-12345678", "")]
+    [InlineData("AB-1234567", "")]
+    [InlineData("12-12345678", "")]
+    [InlineData("", "")]
+    public void NormalizeTrackNumber_FormatsAndRejectsInvalidTaiwanTrackNumbers(string input, string expected)
+    {
+        Assert.Equal(expected, Business.NormalizeTrackNumber(input));
+    }
+
+    [Theory]
+    [InlineData(31500, "應稅", 30000, 1500)]
+    [InlineData(10000, "應稅", 9524, 476)]
+    [InlineData(30000, "零稅率", 30000, 0)]
+    [InlineData(30000, "免稅", 30000, 0)]
+    public void CalculateTax_ComputesTaiwanVatAndTaxExemptCorrectly(decimal total, string taxType, decimal expectedSales, decimal expectedTax)
+    {
+        var (sales, tax) = Business.CalculateTax(total, taxType);
+        Assert.Equal(expectedSales, sales);
+        Assert.Equal(expectedTax, tax);
+        Assert.Equal(total, sales + tax);
+    }
+
+    [Fact]
+    public async Task Validate_EInvoice_EnforcesTaiwanRulesCarrierDonateLockingAndAmountCap()
+    {
+        using var scope = new TestDbScope();
+        var db = scope.Context;
+        var today = Business.Today;
+
+        db.Assets.Add(new Asset { Id = 1, Code = "AST-01", Name = "大樓", Status = "啟用" });
+        db.Units.Add(new Unit { Id = 2, Code = "UNT-01", Name = "1F", AssetId = 1, Status = "啟用" });
+        db.Tenants.Add(new Tenant { Id = 3, Code = "TNT-01", Name = "租戶", Status = "啟用" });
+        db.Leases.Add(new Lease
+        {
+            Id = 4,
+            Code = "LSE-01",
+            Name = "合約",
+            UnitId = 2,
+            TenantId = 3,
+            Status = "有效",
+            StartDate = new DateTime(2026, 1, 1),
+            EndDate = new DateTime(2026, 12, 31),
+            Rent = 31500m
+        });
+        var activeInvoice = new Invoice
+        {
+            Id = 5,
+            Code = "INV-01",
+            Name = "3月租金",
+            LeaseId = 4,
+            Kind = "租金",
+            Period = new DateTime(2026, 3, 1),
+            DueDate = new DateTime(2026, 3, 5),
+            Amount = 31500m,
+            Status = "啟用"
+        };
+        var voidInvoice = new Invoice
+        {
+            Id = 6,
+            Code = "INV-02",
+            Name = "作廢管理費",
+            LeaseId = 4,
+            Kind = "管理費",
+            Period = new DateTime(2026, 3, 1),
+            DueDate = new DateTime(2026, 3, 5),
+            Amount = 2000m,
+            Status = "作廢"
+        };
+        db.Invoices.AddRange(activeInvoice, voidInvoice);
+        await db.SaveChangesAsync();
+
+        // 1. 合法 B2B 電子發票：字軌正規化並自動計算 5% 營業稅
+        var validB2B = new EInvoice
+        {
+            Id = 10,
+            Code = "EINV-01",
+            Name = "3月租金電子發票",
+            InvoiceId = 5,
+            TrackNumber = "ab12345678",
+            IssuedDate = today,
+            Category = "B2B 存證",
+            TaxType = "應稅",
+            BuyerTaxId = "24536806",
+            CarrierType = "無載具",
+            CarrierId = "",
+            DonateCode = "",
+            RandomCode = "3849",
+            Amount = 21000m,
+            Status = "啟用"
+        };
+        Assert.Empty(await Business.Validate(db, validB2B, null));
+        Assert.Equal("AB-12345678", validB2B.TrackNumber);
+        Assert.Equal(20000m, validB2B.SalesAmount);
+        Assert.Equal(1000m, validB2B.TaxAmount);
+        db.EInvoices.Add(validB2B);
+        await db.SaveChangesAsync();
+
+        // 2. 檢查字軌重複、未來開立日、超額開立、B2B 未填統編與禁止載具/愛心碼、隨機碼格式
+        var invalidB2B = new EInvoice
+        {
+            Id = 11,
+            Code = "EINV-02",
+            Name = "異常發票",
+            InvoiceId = 5,
+            TrackNumber = "AB-12345678",
+            IssuedDate = today.AddDays(1),
+            Category = "B2B 存證",
+            TaxType = "應稅",
+            BuyerTaxId = "",
+            CarrierType = "手機條碼",
+            CarrierId = "/ABC1234",
+            DonateCode = "168",
+            RandomCode = "12A",
+            Amount = 20000m,
+            Status = "啟用"
+        };
+        var b2bErrors = await Business.Validate(db, invalidB2B, null);
+        Assert.Contains("此發票字軌號碼已被使用。", b2bErrors);
+        Assert.Contains("開立日期不可晚於今天。", b2bErrors);
+        Assert.Contains("B2B 存證發票必須填寫 8 位數買方統一編號。", b2bErrors);
+        Assert.Contains("B2B 存證發票不可使用雲端載具或愛心碼捐贈。", b2bErrors);
+        Assert.Contains("四碼隨機碼須為 4 位數字。", b2bErrors);
+        Assert.Contains("發票總額超過應收帳款可開立餘額 NT$ 10,500。", b2bErrors);
+
+        // 3. 檢查 B2C 載具格式（手機條碼、自然人憑證）、愛心碼格式與 B2C 誤填統編
+        var invalidB2C = new EInvoice
+        {
+            Id = 12,
+            Code = "EINV-03",
+            Name = "B2C發票錯誤",
+            InvoiceId = 5,
+            TrackNumber = "BAD-TRACK",
+            IssuedDate = today,
+            Category = "B2C 存證",
+            TaxType = "應稅",
+            BuyerTaxId = "24536806",
+            CarrierType = "手機條碼",
+            CarrierId = "INVALID",
+            DonateCode = "99",
+            RandomCode = "1234",
+            Amount = 10500m,
+            Status = "啟用"
+        };
+        var b2cErrors = await Business.Validate(db, invalidB2C, null);
+        Assert.Contains("發票字軌號碼格式須為 2 碼大寫英文加 8 位數字（如 AB-12345678）。", b2cErrors);
+        Assert.Contains("B2C 存證發票不可填寫買方統一編號；企業統編請選擇 B2B 存證。", b2cErrors);
+        Assert.Contains("手機條碼格式須為 / 開頭加 7 碼大寫英數或符號（.+ -）。", b2cErrors);
+        Assert.Contains("愛心碼須為 3 至 7 位數字。", b2cErrors);
+
+        // 4. 對已作廢帳款開立發票應阻擋
+        var onVoidInv = new EInvoice
+        {
+            Id = 13,
+            Code = "EINV-04",
+            Name = "作廢帳款發票",
+            InvoiceId = 6,
+            TrackNumber = "CD-12345678",
+            IssuedDate = today,
+            Category = "B2C 存證",
+            TaxType = "免稅",
+            CarrierType = "自然人憑證",
+            CarrierId = "AB12345678901234",
+            RandomCode = "5678",
+            Amount = 2000m,
+            Status = "啟用"
+        };
+        Assert.Contains("不可對已作廢帳款開立發票。", await Business.Validate(db, onVoidInv, null));
+
+        // 5. 已開立發票鎖定核心欄位，但允許變更狀態為作廢
+        var alteredEInvoice = new EInvoice
+        {
+            Id = 10,
+            Code = "EINV-01",
+            Name = "3月租金電子發票",
+            InvoiceId = 5,
+            TrackNumber = "AB-12345678",
+            IssuedDate = today,
+            Category = "B2B 存證",
+            TaxType = "應稅",
+            BuyerTaxId = "24536806",
+            CarrierType = "無載具",
+            RandomCode = "3849",
+            Amount = 10500m,
+            Status = "啟用"
+        };
+        Assert.Contains("已開立發票不可改寫字軌號碼、金額、帳款歸屬、統編或開立日期；請作廢原發票再重新開立。", await Business.Validate(db, alteredEInvoice, validB2B));
+
+        // 6. 已有有效電子發票的應收帳款不可直接改寫或作廢
+        var voidTargetInvoice = new Invoice
+        {
+            Id = 5,
+            Code = "INV-01",
+            Name = "3月租金",
+            LeaseId = 4,
+            Kind = "租金",
+            Period = new DateTime(2026, 3, 1),
+            DueDate = new DateTime(2026, 3, 5),
+            Amount = 31500m,
+            Status = "作廢"
+        };
+        Assert.Contains("此帳款已有有效電子發票，請先作廢電子發票再更改或作廢帳款。", await Business.Validate(db, voidTargetInvoice, activeInvoice));
+
+        var voidedEInvoice = new EInvoice
+        {
+            Id = 10,
+            Code = "EINV-01",
+            Name = "3月租金電子發票",
+            InvoiceId = 5,
+            TrackNumber = "AB-12345678",
+            IssuedDate = today,
+            Category = "B2B 存證",
+            TaxType = "應稅",
+            BuyerTaxId = "24536806",
+            CarrierType = "無載具",
+            RandomCode = "3849",
+            Amount = 21000m,
+            Status = "作廢"
+        };
+        Assert.Empty(await Business.Validate(db, voidedEInvoice, validB2B));
+    }
 }

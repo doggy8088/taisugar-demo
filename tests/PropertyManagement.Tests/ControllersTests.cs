@@ -240,4 +240,63 @@ public class ControllersTests
         Assert.Equal("已產生 0 筆租金應收，已存在的帳款自動略過。", controller.TempData["Success"]);
         Assert.Equal(1, await db.Invoices.CountAsync());
     }
+
+    [Fact]
+    public async Task ManageController_Generate_CreatesMonthlyEInvoicesIdempotentlyForB2BAndB2C()
+    {
+        using var scope = new TestDbScope();
+        var db = scope.Context;
+        var period = new DateTime(2026, 2, 1);
+
+        db.Assets.Add(new Asset { Id = 1, Code = "AST-01", Name = "大樓", Status = "啟用" });
+        db.Units.AddRange(
+            new Unit { Id = 2, Code = "UNT-01", Name = "1F", AssetId = 1, Status = "啟用" },
+            new Unit { Id = 3, Code = "UNT-02", Name = "2F", AssetId = 1, Status = "啟用" }
+        );
+        db.Tenants.AddRange(
+            new Tenant { Id = 4, Code = "TNT-01", Name = "企業租戶", Kind = "公司", TaxId = "24536806", Status = "啟用" },
+            new Tenant { Id = 5, Code = "TNT-02", Name = "個人租戶", Kind = "個人", TaxId = "", Status = "啟用" }
+        );
+        db.Leases.AddRange(
+            new Lease { Id = 6, Code = "LSE-01", Name = "企業合約", UnitId = 2, TenantId = 4, Status = "有效", Rent = 31500m },
+            new Lease { Id = 7, Code = "LSE-02", Name = "個人合約", UnitId = 3, TenantId = 5, Status = "有效", Rent = 21000m }
+        );
+        db.Invoices.AddRange(
+            new Invoice { Id = 8, Code = "INV-01", Name = "2月企業租金", LeaseId = 6, Kind = "租金", Period = period, Amount = 31500m, Status = "啟用" },
+            new Invoice { Id = 9, Code = "INV-02", Name = "2月個人租金", LeaseId = 7, Kind = "租金", Period = period, Amount = 21000m, Status = "啟用" }
+        );
+        await db.SaveChangesAsync();
+
+        var controller = CreateManageController(db);
+
+        // 首次批次開立 2026-02 電子發票
+        await controller.Generate("einvoices", "2026-02");
+        Assert.Equal("已開立 2 張電子發票，已開立的帳款自動略過。", controller.TempData["Success"]);
+
+        var einvoices = await db.EInvoices.OrderBy(x => x.InvoiceId).ToListAsync();
+        Assert.Equal(2, einvoices.Count);
+
+        var b2b = einvoices[0];
+        Assert.Equal("B2B 存證", b2b.Category);
+        Assert.Equal("24536806", b2b.BuyerTaxId);
+        Assert.Equal("無載具", b2b.CarrierType);
+        Assert.Equal(30000m, b2b.SalesAmount);
+        Assert.Equal(1500m, b2b.TaxAmount);
+        Assert.Equal(31500m, b2b.Amount);
+        Assert.NotEqual("", Business.NormalizeTrackNumber(b2b.TrackNumber));
+
+        var b2c = einvoices[1];
+        Assert.Equal("B2C 存證", b2c.Category);
+        Assert.Equal("", b2c.BuyerTaxId);
+        Assert.Equal("會員載具", b2c.CarrierType);
+        Assert.Equal("TNT-02", b2c.CarrierId);
+        Assert.Equal(20000m, b2c.SalesAmount);
+        Assert.Equal(1000m, b2c.TaxAmount);
+        Assert.Equal(21000m, b2c.Amount);
+
+        // 重複執行同月份不會重複開立
+        await controller.Generate("einvoices", "2026-02");
+        Assert.Equal("已開立 0 張電子發票，已開立的帳款自動略過。", controller.TempData["Success"]);
+        Assert.Equal(2, await db.EInvoices.CountAsync());
+    }
 }

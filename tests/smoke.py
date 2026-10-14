@@ -73,7 +73,7 @@ def main():
                 except (OSError, urllib.error.URLError): pass
                 time.sleep(.1)
             else: raise RuntimeError('Startup timed out')
-            for module in ['assets','units','tenants','leases','meters','readings','invoices','payments']:
+            for module in ['assets','units','tenants','leases','meters','readings','invoices','payments','einvoices']:
                 check(request('/manage/'+module)[0] == 200, f'{module} list renders')
                 form(module)
             status, body = request('/manage/units?page=2&size=10')
@@ -123,6 +123,16 @@ def main():
             check('class="numeric">0</td>' in request('/manage/invoices?q=RENT-202601-'+str(lid))[1],'fully paid invoice has zero remaining balance')
             inv=form('invoices',iid);inv['Amount']='15000';check(save('invoices',inv,iid)[0]==422,'invoice with receipt cannot be rewritten')
             pform=form('payments',pid);pform['Status']='作廢';check(save('payments',pform,pid)[0]==200,'receipt can be voided while retaining history')
+            einv=form('einvoices');einv.update(Code='QA-EINV',Name='1月租金電子發票',InvoiceId=str(iid),TrackNumber='ab12345678',IssuedDate='2026-01-20',Category='B2B 存證',TaxType='應稅',BuyerTaxId='24536806',CarrierType='無載具',CarrierId='',DonateCode='',RandomCode='8888',Amount='16000')
+            check(save('einvoices',einv)[0]==200,'create Taiwan B2B electronic invoice')
+            saved_einv=row('EInvoices','QA-EINV');eid=saved_einv['Id']
+            check(saved_einv['TrackNumber']=='AB-12345678' and saved_einv['SalesAmount']+saved_einv['TaxAmount']==1600000,'Taiwan track number normalized and 5% VAT split calculated')
+            bad_einv=dict(einv);bad_einv['Code']='QA-EINV-DUP'
+            check(save('einvoices',bad_einv)[0]==422,'duplicate Taiwan track number blocked')
+            eform=form('einvoices',eid);eform['Amount']='10000';check(save('einvoices',eform,eid)[0]==422,'issued electronic invoice core fields locked')
+            eform=form('einvoices',eid);eform['Status']='作廢';check(save('einvoices',eform,eid)[0]==200,'electronic invoice can be voided')
+            etoken=form('einvoices')['__RequestVerificationToken']
+            check(request('/manage/einvoices/generate',{'month':'2026-01','__RequestVerificationToken':etoken})[0]==200,'monthly electronic invoice batch generation succeeds')
             meter=form('meters');meter.update(Code='QA-METER',Name='測試電表',UnitId=str(uid),Kind='電表',Account='123456',Rate='5.5')
             check(save('meters',meter)[0]==200,'create meter');mid=row('Meters','QA-METER')['Id']
             reading=form('readings');reading.update(Code='QA-READING',Name='測試抄表',MeterId=str(mid),ReadDate='2026-01-31',Previous='100',Current='110.5',Rate='5.5')

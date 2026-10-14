@@ -10,8 +10,8 @@ public class CatalogAndModelsTests
     [Fact]
     public void Catalog_AllModulesDefined_AndFindReturnsExpectedOrNull()
     {
-        Assert.Equal(8, Catalog.All.Length);
-        string[] expectedKeys = ["assets", "units", "tenants", "leases", "meters", "readings", "invoices", "payments"];
+        Assert.Equal(9, Catalog.All.Length);
+        string[] expectedKeys = ["assets", "units", "tenants", "leases", "meters", "readings", "invoices", "payments", "einvoices"];
         Assert.Equal(expectedKeys, Catalog.All.Select(m => m.Key).ToArray());
 
         foreach (var key in expectedKeys)
@@ -104,6 +104,43 @@ public class CatalogAndModelsTests
     }
 
     [Fact]
+    public void ListModel_Cell_FormatsEInvoiceTaxAmountsAndBuyerTaxId()
+    {
+        var einvoicesModule = Catalog.Find("einvoices")!;
+        var list = new ListModel { Module = einvoicesModule };
+        var b2b = new EInvoice
+        {
+            Id = 40,
+            Code = "EINV-01",
+            Name = "10月租金發票",
+            TrackNumber = "AB-12345678",
+            BuyerTaxId = "24536806",
+            SalesAmount = 30000m,
+            TaxAmount = 1500m,
+            Amount = 31500m
+        };
+        var b2c = new EInvoice
+        {
+            Id = 41,
+            Code = "EINV-02",
+            Name = "個人租金發票",
+            TrackNumber = "AB-12345679",
+            Category = "B2C 存證",
+            BuyerTaxId = "",
+            SalesAmount = 20000m,
+            TaxAmount = 1000m,
+            Amount = 21000m
+        };
+
+        Assert.Equal("AB-12345678", list.Cell(b2b, "TrackNumber"));
+        Assert.Equal("24536806", list.Cell(b2b, "BuyerTaxId"));
+        Assert.Equal("30,000", list.Cell(b2b, "SalesAmount"));
+        Assert.Equal("1,500", list.Cell(b2b, "TaxAmount"));
+        Assert.Equal("31,500", list.Cell(b2b, "Amount"));
+        Assert.Equal("—", list.Cell(b2c, "BuyerTaxId"));
+    }
+
+    [Fact]
     public void EditModel_Value_ReturnsStoredValueOrEmptyString()
     {
         var edit = new EditModel
@@ -169,12 +206,15 @@ public class CatalogAndModelsTests
         Assert.Equal(21, db.Readings.Count());
         Assert.Equal(126, db.Invoices.Count());
         Assert.True(db.Payments.Any());
+        Assert.True(db.EInvoices.Any());
 
         var paymentCount = db.Payments.Count();
+        var einvoiceCount = db.EInvoices.Count();
 
         // 再次呼叫不會重複塞入資料
         SeedData.Initialize(db);
         Assert.Equal(6, db.Assets.Count());
         Assert.Equal(paymentCount, db.Payments.Count());
+        Assert.Equal(einvoiceCount, db.EInvoices.Count());
     }
 }
