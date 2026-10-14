@@ -102,6 +102,14 @@ def main():
                   'every injury location has an accessible checkbox alternative')
             check(request('/js/injury-body.js')[0] == 200 and request('/css/injury.css')[0] == 200,
                   'injury interaction and presentation assets are available')
+            with opener.open(base + '/models/human/body.glb', timeout=15) as model_response:
+                model_header = model_response.read(12)
+            check(model_header[:4] == b'glTF' and int.from_bytes(model_header[4:8], 'little') == 2,
+                  '擬真人體模型以有效的本機 GLB 檔案提供')
+            check(all(request(path)[0] == 200 for path in [
+                '/js/body-regions.mjs', '/vendor/three/loaders/GLTFLoader.js',
+                '/vendor/three/utils/BufferGeometryUtils.js', '/vendor/three/utils/SkeletonUtils.js']),
+                '人體模型載入器與全部相依模組可供瀏覽器讀取')
             for module in ['assets','units','tenants','leases','meters','readings','invoices','payments','einvoices']:
                 check(request('/manage/'+module)[0] == 200, f'{module} list renders')
                 form(module)

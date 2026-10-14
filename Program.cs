@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using PropertyManagement.Data;
 var builder=WebApplication.CreateBuilder(args);
@@ -10,7 +11,9 @@ var app=builder.Build();
 CultureInfo.DefaultThreadCurrentCulture=CultureInfo.GetCultureInfo("zh-TW");
 CultureInfo.DefaultThreadCurrentUICulture=CultureInfo.GetCultureInfo("zh-TW");
 if(!app.Environment.IsDevelopment())app.UseExceptionHandler("/Home/Error");
-app.UseStaticFiles();app.UseRouting();
+var contentTypes = new FileExtensionContentTypeProvider();
+contentTypes.Mappings[".glb"] = "model/gltf-binary";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = contentTypes });app.UseRouting();
 app.MapControllerRoute("default","{controller=Home}/{action=Index}/{id?}");
 using(var scope=app.Services.CreateScope()) {
  var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();

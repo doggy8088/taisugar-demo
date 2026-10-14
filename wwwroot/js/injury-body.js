@@ -1,3 +1,5 @@
+import { fitBodyRegions, pickBodyRegion } from './body-regions.mjs';
+
 const app = document.querySelector('#injury-app');
 
 if (app) {
@@ -109,14 +111,14 @@ if (app) {
         app.querySelector('.body-loading strong').textContent = '目前使用部位清單';
         app.querySelector('.body-loading p').textContent = '仍可勾選所有部位，並確認選取結果。';
     }
-    Promise.all([import('three'), import('/vendor/three/OrbitControls.js')]).then(([THREE, { OrbitControls }]) => {
-        viewer = renderBody(THREE, OrbitControls, parts, state, selected, id => toggle(id, true), reduced, fallback);
+    Promise.all([import('three'), import('/vendor/three/OrbitControls.js'), import('/vendor/three/loaders/GLTFLoader.js')]).then(async ([THREE, { OrbitControls }, { GLTFLoader }]) => {
+        viewer = await renderBody(THREE, OrbitControls, GLTFLoader, fitBodyRegions(parts), state, selected, id => toggle(id, true), reduced, fallback);
         app.dataset.renderer = 'ready';
         viewer.update();
     }).catch(fallback);
 }
 
-function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduced, fallback) {
+async function renderBody(THREE, OrbitControls, GLTFLoader, parts, state, selected, toggle, reduced, fallback) {
     const app = document.querySelector('#injury-app');
     const stage = app.querySelector('.body-stage');
     const canvas = app.querySelector('#injury-canvas');
@@ -149,55 +151,40 @@ function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduce
     scene.add(key);
     const rim = new THREE.DirectionalLight(0xc3d7d0, 2);
     rim.position.set(3, 6, -5);scene.add(rim);
-    const geometry = new THREE.SphereGeometry(1, 28, 20);
     const meshes = [];
-    const partMeshes = new Map();
     const labels = [];
-    const supportMeshes = [];
-    const skin = new THREE.MeshStandardMaterial({ color: 0xd2ddd3, roughness: .6, transparent: true });
+    const centers = new Map();
     let hoverId = null;
     let frame;
     let motion;
     let height = 8.35;
     let disposed = false;
-    // 連續輪廓銜接關節，部位網格覆蓋其上並保留獨立選取。
-    const torso = new THREE.Mesh(new THREE.LatheGeometry([
-        new THREE.Vector2(.35, 3.86), new THREE.Vector2(.55, 4.08),
-        new THREE.Vector2(.49, 4.50), new THREE.Vector2(.60, 5.05),
-        new THREE.Vector2(.72, 5.52), new THREE.Vector2(.69, 5.76),
-        new THREE.Vector2(.25, 5.99)
-    ], 48), skin);
-    torso.scale.z = .48;scene.add(torso);supportMeshes.push(torso);
-    const headBase = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), skin);
-    headBase.position.set(0, 6.80, 0);headBase.scale.set(.35, .51, .33);scene.add(headBase);supportMeshes.push(headBase);
-    function connector(a, b, radius) {
-        const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b), direction = to.clone().sub(from);
-        const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(radius, Math.max(.01, direction.length() - radius * 2), 6, 16), skin);
-        mesh.position.copy(from.add(to).multiplyScalar(.5));
-        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-        scene.add(mesh);supportMeshes.push(mesh);
-    }
-    connector([0, 5.87, 0], [0, 6.42, 0], .19);
-    for (const side of [-1, 1]) {
-        connector([side * .87, 5.66, 0], [side * 1.18, 4.61, 0], .16);
-        connector([side * 1.18, 4.61, 0], [side * 1.44, 3.61, 0], .12);
-        connector([side * .33, 3.93, 0], [side * .33, 2.43, 0], .21);
-        connector([side * .33, 2.43, 0], [side * .33, .85, 0], .14);
-    }
-    parts.forEach(part => {
-        if (!part.width) return;
-        const surface = new THREE.MeshStandardMaterial({ color: part.id.endsWith('-eye') ? 0x80998b : 0xd7e1d7, roughness: .47, metalness: .07, transparent: true, opacity: .98 });
-        const mesh = new THREE.Mesh(geometry, surface);
-        mesh.position.set(part.x, part.y, part.z);
-        mesh.scale.set(part.width, part.height, part.depth);
-        mesh.rotation.z = part.rotation;
-        mesh.userData.part = part;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        scene.add(mesh);
-        meshes.push(mesh);
-        partMeshes.set(part.id, mesh);
+    const model = await new GLTFLoader().loadAsync('/models/human/body.glb');
+    model.scene.updateMatrixWorld(true);
+    model.scene.traverse(source => {
+        if (!source.isMesh) return;
+        const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld);
+        const position = geometry.attributes.position;
+        const regionIds = [];
+        const point = new THREE.Vector3();
+        for (let i = 0; i < position.count; i++) {
+            point.fromBufferAttribute(position, i);
+            const part = pickBodyRegion(point, parts);
+            regionIds.push(part?.id);
+            if (part) {
+                const entry = centers.get(part.id) ?? { sum: new THREE.Vector3(), count: 0 };
+                entry.sum.add(point);entry.count++;centers.set(part.id, entry);
+            }
+        }
+        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(position.count * 3), 3));
+        const material = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .66, metalness: 0, transparent: true });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData.regionIds = regionIds;
+        mesh.userData.eye = source.name.includes('eye');
+        mesh.castShadow = true;mesh.receiveShadow = true;
+        scene.add(mesh);meshes.push(mesh);
     });
+    centers.forEach(entry => entry.sum.divideScalar(entry.count));
     const ground = new THREE.Mesh(new THREE.CircleGeometry(1.1, 64), new THREE.MeshStandardMaterial({ color: 0xdce5d4, roughness: 1, transparent: true, opacity: .65 }));
     ground.rotation.x = -Math.PI / 2;ground.position.y = .30;ground.receiveShadow = true;scene.add(ground);
     const skeleton = new THREE.Group();scene.add(skeleton);
@@ -211,12 +198,12 @@ function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduce
     }
     bone([0, 4, -.08], [0, 6.15, -.08], .095);
     for (const sign of [-1, 1]) {
-        bone([0, 5.9, 0], [sign * .88, 5.67, 0]);
-        bone([sign * .88, 5.67, 0], [sign * 1.18, 4.61, 0]);
-        bone([sign * 1.18, 4.61, 0], [sign * 1.44, 3.61, 0], .045);
-        bone([sign * .4, 4.0, 0], [sign * .33, 2.43, 0], .075);
-        bone([sign * .33, 2.43, 0], [sign * .33, .9, 0], .06);
-        bone([sign * .33, .9, 0], [sign * .33, .5, .4], .045);
+        bone([0, 5.9, 0], [sign * .77, 5.94, 0]);
+        bone([sign * .77, 5.94, 0], [sign * .984, 5.066, 0]);
+        bone([sign * .984, 5.066, 0], [sign * 1.098, 4.12, 0], .045);
+        bone([sign * .4, 4.0, 0], [sign * .757, 2.234, 0], .075);
+        bone([sign * .757, 2.234, 0], [sign * .757, .627, 0], .06);
+        bone([sign * .757, .627, 0], [sign * .757, .45, .4], .045);
     }
     for (let i = 0; i < 6; i++) {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(.48 - i * .022, .025, 8, 40), boneMaterial);
@@ -249,7 +236,7 @@ function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduce
         const lists = [[], []];
         labels.forEach((item, index) => {
             const p = item.part;
-            const point = new THREE.Vector3(p.x, p.y, p.z).project(camera);
+            const point = (centers.get(p.id)?.sum.clone() ?? new THREE.Vector3(p.x, p.y, p.z)).project(camera);
             const visible = state.labels && point.z > -1 && point.z < 1 && Math.abs(point.y) < .93 && (facingSide || p.surface !== (front ? '背面' : '正面'));
             item.button.hidden = !visible;item.line.style.display = visible ? '' : 'none';item.dot.style.display = visible ? '' : 'none';
             if (!visible) return;
@@ -299,14 +286,18 @@ function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduce
     }
     function update() {
         skeleton.visible = state.skeleton;
-        skin.opacity = state.skeleton ? .10 : .96;
-        skin.depthWrite = !state.skeleton;
+        const color = new THREE.Color();
+        const partMap = new Map(parts.map(part => [part.id, part]));
         meshes.forEach(mesh => {
-            const part = mesh.userData.part;
-            const marked = selected.has(part.id);
-            const filtered = (state.group && state.group !== part.group) || (state.side && state.side !== part.side);
-            mesh.material.color.set(marked ? 0xc78468 : hoverId === part.id ? 0x9eb787 : part.id.endsWith('-eye') ? 0x80998b : 0xd7e1d7);
-            mesh.material.opacity = marked ? .98 : state.skeleton ? .15 : filtered ? .20 : .98;
+            const colors = mesh.geometry.attributes.color;
+            mesh.userData.regionIds.forEach((id, index) => {
+                const part = partMap.get(id);
+                const filtered = part && ((state.group && state.group !== part.group) || (state.side && state.side !== part.side));
+                color.set(selected.has(id) ? 0xbb6348 : hoverId === id ? 0x88a993 : filtered ? 0xc9cdc7 : mesh.userData.eye ? 0x7c817b : 0xc6b49c);
+                colors.setXYZ(index, color.r, color.g, color.b);
+            });
+            colors.needsUpdate = true;
+            mesh.material.opacity = state.skeleton ? .18 : 1;
             mesh.material.depthWrite = !state.skeleton;
         });
         createLabels();requestDraw();
@@ -329,7 +320,10 @@ function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduce
     function hit(event) {
         const rect = canvas.getBoundingClientRect();pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
         raycaster.setFromCamera(pointer, camera);
-        return raycaster.intersectObjects(meshes).find(item => (!state.group || item.object.userData.part.group === state.group) && (!state.side || item.object.userData.part.side === state.side))?.object.userData.part;
+        const intersection = raycaster.intersectObjects(meshes)[0];
+        if (!intersection) return;
+        const part = pickBodyRegion(intersection.point, parts);
+        return part && (!state.group || part.group === state.group) && (!state.side || part.side === state.side) ? part : undefined;
     }
     canvas.addEventListener('pointerdown', event => { down = [event.clientX, event.clientY]; });
     canvas.addEventListener('pointercancel', () => { down = null; });
@@ -352,8 +346,7 @@ function renderBody(THREE, OrbitControls, parts, state, selected, toggle, reduce
     window.addEventListener('pagehide', event => {
         if (event.persisted) return;
         disposed = true;cancelAnimationFrame(frame);observer.disconnect();controls.dispose();
-        meshes.forEach(mesh => mesh.material.dispose());geometry.dispose();
-        supportMeshes.forEach(mesh => mesh.geometry.dispose());skin.dispose();
+        meshes.forEach(mesh => { mesh.material.dispose();mesh.geometry.dispose(); });
         skeleton.children.forEach(mesh => mesh.geometry.dispose());boneMaterial.dispose();ground.geometry.dispose();ground.material.dispose();renderer.dispose();
     });
     resize();
