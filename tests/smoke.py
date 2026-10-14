@@ -99,6 +99,9 @@ def main():
             check(save('units',data)[0] == 200,'create related unit'); uid=row('Units','QA-UNIT')['Id']
             data = form('tenants');data.update(Code='QA-TENANT',Name='測試承租戶',Contact='測試人',Phone='0912345678')
             check(save('tenants',data)[0] == 200,'create tenant');tid=row('Tenants','QA-TENANT')['Id']
+            tenants_list_body = request('/manage/tenants?q=QA-TENANT')[1]
+            check('測○人' in tenants_list_body and '測試人' not in tenants_list_body, 'tenant contact is masked in list view')
+            check(form('tenants', tid).get('Contact') == '測試人', 'tenant contact remains unmasked in edit form')
             data = form('leases');data.update(Code='QA-LEASE',Name='測試租約',UnitId=str(uid),TenantId=str(tid),StartDate='2026-01-16',EndDate='2027-01-15',Rent='31000',Deposit='62000',DueDay='5',Status='有效')
             check(save('leases',data)[0] == 200,'create active lease');lid=row('Leases','QA-LEASE')['Id']
             overlap=dict(data);overlap['Code']='QA-OVERLAP';overlap['Name']='重疊租約'

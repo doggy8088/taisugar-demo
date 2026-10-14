@@ -78,6 +78,31 @@ public class CatalogAndModelsTests
         Assert.Equal("—", unitList.Cell(unit, "NonExistentProperty"));
     }
 
+    [Theory]
+    [InlineData("王小明", "王○明")]
+    [InlineData("王明", "王○")]
+    [InlineData("歐陽小明", "歐○○明")]
+    [InlineData("王", "○")]
+    [InlineData("", "—")]
+    public void ListModel_Cell_MasksTenantContactInListView(string contact, string expected)
+    {
+        var tenantsModule = Catalog.Find("tenants")!;
+        var tenantList = new ListModel { Module = tenantsModule };
+        var tenant = new Tenant
+        {
+            Id = 30,
+            Code = "TNT-30",
+            Name = "澄光設計有限公司",
+            Kind = "公司",
+            Contact = contact,
+            Phone = "02-27100001"
+        };
+
+        Assert.Equal(expected, tenantList.Cell(tenant, "Contact"));
+        Assert.Equal("公司", tenantList.Cell(tenant, "Kind"));
+        Assert.Equal("02-27100001", tenantList.Cell(tenant, "Phone"));
+    }
+
     [Fact]
     public void EditModel_Value_ReturnsStoredValueOrEmptyString()
     {

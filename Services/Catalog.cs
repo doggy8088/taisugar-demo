@@ -18,6 +18,10 @@ public static class Catalog {
  M<Payment>("payments","收款紀錄","收款紀錄","逐筆登錄實際入帳，自動更新應收餘額。","receipt",[R("InvoiceId","對應應收帳款","invoices"),F("PaidDate","收款日期","date"),F("Amount","收款金額（NT$）","number"),S("Method","收款方式","銀行轉帳","現金","支票","其他"),F("Reference","交易參考號","text",false)],["InvoiceId","PaidDate","Amount"],["啟用","作廢"])
  ];
  public static Module? Find(string key)=>All.FirstOrDefault(x=>x.Key==key);
+ public static string MaskName(string? value) {
+  var s=value?.Trim()??"";
+  return s.Length switch {0=>"—",1=>"○",2=>$"{s[0]}○",_=>$"{s[0]}{new string('○',s.Length-2)}{s[^1]}"};
+ }
 }
 public record Option(string Value,string Label);
 public class ListModel {
@@ -33,6 +37,7 @@ public class ListModel {
   if(key=="Balance") return Balances.GetValueOrDefault(row.Id).ToString("N0");
   var f=Module.Fields.FirstOrDefault(x=>x.Key==key); var v=row.GetType().GetProperty(key)?.GetValue(row);
   if(f?.Reference is {} reference && v is int id) return Lookups.GetValueOrDefault(reference)?.GetValueOrDefault(id)??"—";
+  if(row is Tenant && key=="Contact") return Catalog.MaskName(v as string);
   if(v is DateTime date) return date.ToString(key=="Period"?"yyyy-MM":"yyyy/MM/dd");
   if(v is decimal number) return number.ToString(key is "Area" or "Rate"?"N2":"N0");
   return v?.ToString()??"—";
