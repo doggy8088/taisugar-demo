@@ -89,6 +89,19 @@ def main():
                   '3D application and engine are served locally')
             check('<script type="importmap">' in dashboard,
                   'browser receives the import map required by the 3D engine')
+            injury_status, injury_page = request('/injuries')
+            check(injury_status == 200 and 'id="injury-canvas"' in injury_page,
+                  'injury management provides a 3D body map')
+            check('href="/injuries" class="nav-item active"' in injury_page,
+                  'injury management is reachable from the main navigation')
+            injury_json = re.search(r'<script type="application/json" id="injury-body-data">(.*?)</script>', injury_page, re.S)
+            injury_parts = json.loads(injury_json.group(1))
+            check(len(injury_parts) >= 80 and len({p['id'] for p in injury_parts}) == len(injury_parts),
+                  'body map exposes distinct detailed injury locations')
+            check(injury_page.count('name="bodyParts"') == len(injury_parts) and 'left-finger-1' in injury_page and 'right-toe-5' in injury_page,
+                  'every injury location has an accessible checkbox alternative')
+            check(request('/js/injury-body.js')[0] == 200 and request('/css/injury.css')[0] == 200,
+                  'injury interaction and presentation assets are available')
             for module in ['assets','units','tenants','leases','meters','readings','invoices','payments','einvoices']:
                 check(request('/manage/'+module)[0] == 200, f'{module} list renders')
                 form(module)

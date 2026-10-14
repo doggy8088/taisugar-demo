@@ -1,0 +1,53 @@
+@model IReadOnlyList<InjuryBodyPart>
+@using System.Text.Json
+@{ ViewData["Title"] = "工傷管理"; }
+<section class="injury-heading">
+    <div><div class="eyebrow">職場安全 · 傷害紀錄</div><h1>工傷管理<span>受傷部位標記</span></h1><p>選取人體上的受傷位置，讓每一處傷害都被清楚記錄。</p></div>
+    <div class="injury-step"><span>01</span><div>標記受傷部位<small>支援多處、左右側與正背面</small></div></div>
+</section>
+<section id="injury-app" class="injury-app" aria-label="受傷部位選取器">
+    <div class="injury-workspace">
+        <section class="body-viewer" aria-labelledby="body-heading">
+            <div class="body-toolbar"><div><h2 id="body-heading">人體部位圖</h2><p>點選部位即可標記，再次點選可取消。</p></div><div class="body-mode" aria-label="顯示模式"><button type="button" data-body-mode="surface" aria-pressed="true">體表</button><button type="button" data-body-mode="skeleton" aria-pressed="false">骨架參考</button></div></div>
+            <div class="body-view-tabs" aria-label="人體視角"><button type="button" data-body-view="front" aria-pressed="true">正面</button><button type="button" data-body-view="back" aria-pressed="false">背面</button><button type="button" data-body-view="left" aria-pressed="false">左側</button><button type="button" data-body-view="right" aria-pressed="false">右側</button></div>
+            <div class="body-stage">
+                <canvas id="injury-canvas" aria-label="可旋轉的人體示意圖；亦可使用部位清單勾選" aria-describedby="body-help"></canvas>
+                <svg class="body-leaders" aria-hidden="true"></svg>
+                <div class="body-labels" aria-label="人體部位標籤"></div>
+                <div class="body-loading" role="status"><span class="body-loading-symbol">＋</span><strong>人體部位導覽</strong><p>可使用右側部位清單進行選取。</p></div>
+                <span class="body-orientation body-person-right">當事人右側</span><span class="body-orientation body-person-left">當事人左側</span>
+                <div class="body-hover" aria-live="polite">將游標移至人體，查看部位名稱</div>
+            </div>
+            <div class="body-viewer-footer"><div><span class="injury-legend-dot"></span>已選部位<span class="injury-hover-dot"></span>游標所在部位</div><label><input id="body-show-labels" type="checkbox" checked /> 顯示部位標籤</label><div class="body-camera-tools"><button type="button" data-body-zoom="in" aria-label="放大人體">＋</button><button type="button" data-body-zoom="out" aria-label="縮小人體">−</button><button type="button" data-body-reset aria-label="重設人體視角">↺</button></div></div>
+            <p id="body-help">拖曳旋轉 · 滾輪縮放 · 左右以當事人自身為準。人體為部位標記示意。</p>
+        </section>
+        <aside class="injury-selector" aria-labelledby="parts-heading">
+            <div class="parts-heading"><div><span class="eyebrow">部位清單</span><h2 id="parts-heading">哪裡受傷了？</h2></div><span class="parts-total">@Model.Count 個部位</span></div>
+            <label class="body-search"><svg aria-hidden="true"><use href="#i-search" /></svg><span class="sr-only">搜尋受傷部位</span><input type="search" id="body-search" placeholder="搜尋部位，如：手腕、膝、腳趾" autocomplete="off" /></label>
+            <label class="body-group-label" for="body-group">聚焦部位</label><select id="body-group"><option value="">全身總覽</option>@foreach(var group in Model.Select(p => p.Group).Distinct()){<option value="@group">@group</option>}</select>
+            <div class="body-side-filter" aria-label="篩選左右側"><button type="button" data-body-side="" aria-pressed="true">全部</button><button type="button" data-body-side="左側" aria-pressed="false">左側</button><button type="button" data-body-side="右側" aria-pressed="false">右側</button><button type="button" data-body-side="中線" aria-pressed="false">中線</button></div>
+            <div class="body-part-list">
+                @foreach(var group in Model.GroupBy(p => p.Group))
+                {
+                    <details class="body-part-group" data-body-group="@group.Key" open="@(group.Key == "頭頸部")"><summary><span>@group.Key</span><small>@group.Count() 部位</small><span class="group-toggle" aria-hidden="true">＋</span></summary><fieldset><legend class="sr-only">@group.Key</legend>
+                    @foreach(var part in group){<label class="body-part-option" data-part-row="@part.Id"><input type="checkbox" name="bodyParts" value="@part.Id" /><span>@part.Name</span><small>@(part.Surface is "雙面" or "其他" ? "" : part.Surface)</small></label>}
+                    </fieldset></details>
+                }
+                <p class="body-no-results" hidden>找不到符合的部位。可清除條件，或選擇「其他／未明部位」。</p>
+            </div>
+            <div class="body-selector-note">細部位置可透過搜尋或分區清單選取。內部、全身性及未明傷害亦可直接勾選。</div>
+        </aside>
+    </div>
+    <section class="injury-selection" aria-labelledby="selection-heading">
+        <div class="selection-title"><div><h2 id="selection-heading">已選受傷部位 <span id="body-selection-count">0</span></h2><p>可同時標記多個部位，點選標籤上的 × 可移除。</p></div><button type="button" class="selection-clear" data-body-clear disabled>清除全部</button></div>
+        <div id="body-selected-parts" class="selected-body-parts"><p class="selection-empty">尚未選取部位。請點選人體或勾選右側清單。</p></div>
+        <div class="selection-bottom"><p id="body-selection-status" role="status">選取結果僅保留於本頁，尚未存入工傷個案。</p><button type="button" class="button primary" data-body-confirm disabled>確認選取 <span aria-hidden="true">→</span></button></div>
+        <output id="body-confirmed-summary" hidden></output>
+    </section>
+</section>
+<script type="application/json" id="injury-body-data">@Html.Raw(JsonSerializer.Serialize(Model, new JsonSerializerOptions(JsonSerializerDefaults.Web)))</script>
+@section Styles {<link rel="stylesheet" href="~/css/injury.css" asp-append-version="true" />}
+@section Scripts {
+    <!script type="importmap">{"imports":{"three":"/vendor/three/three.module.js"}}</!script>
+    <script type="module" src="~/js/injury-body.js" asp-append-version="true"></script>
+}

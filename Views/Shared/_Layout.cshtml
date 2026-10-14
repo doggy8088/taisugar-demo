@@ -1,4 +1,4 @@
-@{var active=ViewContext.RouteData.Values["module"]?.ToString()??"home";}
+@{var active=ViewData["ActiveModule"]?.ToString()??ViewContext.RouteData.Values["module"]?.ToString()??"home";}
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#152d34"/><title>@ViewData["Title"] · 禾境物業</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>@await RenderSectionAsync("Styles", required: false)</head>
@@ -25,6 +25,8 @@
 <div class="nav-heading">工作空間</div>
 <nav aria-label="主要導覽"><a href="/" class="nav-item @(active=="home"?"active":"")"><svg><use href="#i-grid"/></svg>營運總覽</a>
 @foreach(var item in Catalog.All){if(item.Key=="invoices"){<div class="nav-heading financial">財務管理</div>}<a href="/manage/@item.Key" class="nav-item @(active==item.Key?"active":"")"><svg><use href="#i-@item.Icon"/></svg>@item.Title</a>}
+<div class="nav-heading financial">安全與健康</div>
+<a href="/injuries" class="nav-item @(active=="injuries"?"active":"")"><svg><use href="#i-users"/></svg>工傷管理</a>
 </nav>
 <div class="sidebar-bottom"><span class="live-dot"></span>資料儲存於本機資料庫<small>清楚管理，安心經營。</small></div>
 </aside>
