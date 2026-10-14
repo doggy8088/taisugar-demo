@@ -16,6 +16,8 @@ public class HomeController(AppDbContext db) : Controller {
   var snapshot=selected.Year==today.Year&&selected.Month==today.Month?today:selected.AddMonths(1).AddDays(-1);
   var available=units.Where(x=>x.Status=="啟用"&&assets.Any(a=>a.Id==x.AssetId&&a.Status=="啟用")).ToList();
   var model=new DashboardModel{Month=selected,Assets=assets.Count,Units=available.Count,Occupied=available.Count(u=>leases.Any(l=>l.UnitId==u.Id&&l.Status=="有效"&&l.StartDate<=snapshot&&l.EndDate>=snapshot))};
+  model.SceneSnapshot=snapshot;
+  model.SceneAssets=PropertySceneService.Build(assets,units,tenants,leases,invoices,payments,snapshot,today);
   model.Expected=invoices.Where(x=>x.Period==selected&&x.Kind=="租金").Sum(x=>x.Amount);
   var rentIds=invoices.Where(x=>x.Kind=="租金").Select(x=>x.Id).ToHashSet();
   model.Received=payments.Where(x=>x.PaidDate>=selected&&x.PaidDate<selected.AddMonths(1)&&rentIds.Contains(x.InvoiceId)).Sum(x=>x.Amount);

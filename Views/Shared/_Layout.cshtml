@@ -1,7 +1,7 @@
 @{var active=ViewContext.RouteData.Values["module"]?.ToString()??"home";}
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#152d34"/><title>@ViewData["Title"] · 禾境物業</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/></head>
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#152d34"/><title>@ViewData["Title"] · 禾境物業</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>@await RenderSectionAsync("Styles", required: false)</head>
 <body>
 <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
 <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V7l8-4v18M12 10h8v11M2 21h20M7 9v2m0 3v2m9-3v2m0 2v2M7 19v2"/></symbol>

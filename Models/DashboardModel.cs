@@ -9,4 +9,6 @@ public class DashboardModel {
  public List<(Lease Lease,string Tenant,string Unit)> Expiring {get;set;}=[];
  public List<(Invoice Invoice,decimal Balance,string Tenant)> Unpaid {get;set;}=[];
  public List<(string Name,int Count)> Portfolio {get;set;}=[];
+ public DateTime SceneSnapshot {get;set;}
+ public List<SceneAsset> SceneAssets {get;set;}=[];
 }

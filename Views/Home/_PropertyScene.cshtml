@@ -1,0 +1,85 @@
+@model DashboardModel
+@using System.Text.Json
+<section id="property-scene" class="property-explorer" aria-labelledby="scene-heading">
+    <div class="explorer-heading">
+        <div><span class="section-index">01 / 空間管理</span><h2 id="scene-heading">物業全景<span>從建物，走進每個空間。</span></h2></div>
+        <p>空間狀態：@Model.SceneSnapshot.ToString("yyyy/MM/dd")<br />逾期帳款：截至今日</p>
+    </div>
+    <div class="explorer-workspace">
+        <div class="scene-stage">
+            <div class="scene-toolbar">
+                <div class="scene-breadcrumb"><button type="button" data-scene-home>全部物業</button><span data-scene-location aria-live="polite"></span></div>
+                <div class="scene-tools">
+                    <button type="button" data-scene-reset aria-label="重設視角" title="重設視角">↺</button>
+                    <button type="button" data-scene-zoom="in" aria-label="放大場景" title="放大">＋</button>
+                    <button type="button" data-scene-zoom="out" aria-label="縮小場景" title="縮小">−</button>
+                </div>
+            </div>
+            <div class="scene-viewport">
+                <canvas id="property-canvas" aria-label="物業三維示意圖；可使用右側物業及單位清單操作" aria-describedby="scene-help"></canvas>
+                <div class="scene-labels" aria-label="場景中的物業"></div>
+                <div class="scene-loading" role="status"><span class="scene-loading-mark"></span><strong>物業空間導覽</strong><span>也可以直接使用旁邊的物業清單。</span></div>
+                <div class="scene-compass" aria-hidden="true"><span>北</span><i></i></div>
+                <div class="scene-caption"><span>禾境 / 物業空間示意</span><span>示意排列・非實際格局</span></div>
+            </div>
+            <div class="scene-footer">
+                <div class="scene-legend" aria-label="空間狀態圖例">
+                    <span><i class="status-rented"></i>出租中</span><span><i class="status-vacant"></i>空置中</span>
+                    <span><i class="status-maintenance"></i>維修中</span><span><i class="status-own"></i>自用</span><span><i class="status-disabled"></i>停用</span>
+                </div>
+                <p id="scene-help">拖曳旋轉・滾輪縮放・點選建物探索</p>
+            </div>
+        </div>
+        <aside class="scene-inspector" aria-label="物業與單位資料">
+            <div class="inspector-heading"><span class="section-index" data-inspector-eyebrow>物業索引</span><strong data-inspector-title>@Model.SceneAssets.Count 處物業，一目瞭然。</strong></div>
+            <label class="scene-search"><svg aria-hidden="true"><use href="#i-search" /></svg><span class="sr-only">搜尋物業或單位</span><input id="scene-search" type="search" placeholder="尋找物業、樓層或單位" autocomplete="off" /></label>
+            <div class="scene-floor-field" hidden><label for="scene-floor">樓層</label><select id="scene-floor"><option value="">全部樓層</option></select></div>
+            <nav class="scene-asset-list" aria-label="選擇物業">
+                @for (var i = 0; i < Model.SceneAssets.Count; i++)
+                {
+                    var asset = Model.SceneAssets[i];
+                    <a href="#property-@asset.Id" class="scene-asset-card" data-select-asset="@asset.Id">
+                        <span class="asset-number">@((i + 1).ToString("00"))</span>
+                        <span><strong>@asset.Name</strong><small>@asset.Category · @asset.Units.Count 個單位</small></span>
+                        <span class="asset-occupancy">@asset.Occupied<small>出租中</small></span><span class="asset-arrow" aria-hidden="true">↗</span>
+                    </a>
+                }
+            </nav>
+            <p class="scene-no-results" hidden>找不到符合的物業或單位，請試試其他名稱。</p>
+            <div class="scene-property-panels">
+                @foreach (var asset in Model.SceneAssets)
+                {
+                    <details id="property-@asset.Id" class="scene-property" data-asset-panel="@asset.Id">
+                        <summary>@asset.Name <span>@asset.Status</span></summary>
+                        <div class="asset-summary"><p>@asset.Address</p><div><span><b>@asset.Occupied</b> 出租中</span><span><b>@asset.Available</b> 空置中</span></div><a href="/manage/assets/edit/@asset.Id">編輯物業資料 ↗</a></div>
+                        @foreach (var floor in asset.Units.GroupBy(x => x.Floor))
+                        {
+                            <div class="scene-floor-group" data-floor="@floor.Key">
+                                <div class="floor-heading"><span>@floor.Key</span><small>@floor.Count() 個單位</small></div>
+                                @foreach (var unit in floor)
+                                {
+                                    var statusClass = unit.Status switch { "出租中" => "rented", "空置中" => "vacant", "維修中" => "maintenance", "自用" => "own", _ => "disabled" };
+                                    <details class="scene-unit" data-unit="@unit.Id">
+                                        <summary data-select-unit="@unit.Id"><i class="status-@statusClass"></i><span><strong>@unit.Name</strong><small>@unit.Code · @unit.Status</small></span><span class="unit-alerts">@if(unit.Outstanding > 0){<b title="有逾期帳款">欠款</b>}@if(unit.Expiring){<b title="90 天內到期">到期</b>}</span><span class="unit-expand" aria-hidden="true">＋</span></summary>
+                                        <div class="unit-content">
+                                            <dl><div><dt>承租戶</dt><dd>@(unit.LeaseId == null ? "無有效租約" : unit.Tenant)</dd></div>
+                                                <div><dt>每月租金</dt><dd>@(unit.LeaseId == null ? "—" : $"NT$ {unit.Rent:N0}")</dd></div>
+                                                <div><dt>租約期間</dt><dd>@(unit.StartDate?.ToString("yyyy/MM/dd") ?? "—")<br />@(unit.EndDate?.ToString("yyyy/MM/dd") ?? "")</dd></div>
+                                                <div><dt>目前逾期未收</dt><dd class="@(unit.Outstanding > 0 ? "overdue-value" : "")">NT$ @unit.Outstanding.ToString("N0")</dd></div></dl>
+                                            <div class="unit-links"><a href="/manage/units/edit/@unit.Id">編輯單位 ↗</a>@if(unit.LeaseId != null){<a href="/manage/leases/edit/@unit.LeaseId">查看租約 ↗</a>}</div>
+                                        </div>
+                                    </details>
+                                }
+                            </div>
+                        }
+                        @if(asset.Units.Count == 0){<p class="scene-empty-units">尚未建立出租單位。<a href="/manage/units/create">新增單位 ↗</a></p>}
+                    </details>
+                }
+            </div>
+            @if(Model.SceneAssets.Count == 0){<div class="scene-empty"><strong>從第一處物業開始</strong><p>建立資產與出租單位後，就能在這裡探索每個空間。</p><a class="button primary" href="/manage/assets/create">新增第一處物業 ↗</a></div>}
+            <div class="inspector-footnote">點選物業查看樓層，點選單位查看租約與帳款。</div>
+        </aside>
+    </div>
+    <div class="explorer-bottom"><p><span class="live-dot"></span>連結目前資料庫</p><a href="/manage/units">開啟完整單位清單 <span>↗</span></a></div>
+</section>
+<script type="application/json" id="property-scene-data">@Html.Raw(JsonSerializer.Serialize(Model.SceneAssets, new JsonSerializerOptions(JsonSerializerDefaults.Web)))</script>

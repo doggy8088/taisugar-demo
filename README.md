@@ -24,6 +24,7 @@ dotnet run --launch-profile http
 - 營運總覽：出租率、應收／實收、目前逾期未收、六個月趨勢及 90 天內到期租約。
 - 圖表進場動畫、金額遞增、出租率圓環填入與動態重播；月份明細支援滑鼠、觸控及鍵盤，尊重系統減少動態設定。
 - 桌面與行動版介面、欄位驗證、防偽權杖及編輯版本衝突檢查。
+- Three.js 物業全景：建物選取、樓層展開、單位租約與欠款面板、搜尋及鍵盤清單操作；保留原有營運圖表與資料編輯流程。
 
 **資料位置與設定**
 
@@ -51,15 +52,19 @@ python3 tests/smoke.py
 | 路徑 | 用途 |
 | --- | --- |
 | `Models/Domain.cs` | 八類實體、共通欄位與版本識別 |
+| `Models/PropertySceneModel.cs` | 物業全景的建物與單位資料模型 |
 | `Data/AppDbContext.cs` | 資料庫映射、精確數值與關聯限制 |
 | `Data/SeedData.cs` | 開發環境示範資料 |
 | `Services/Catalog.cs` | 各模組欄位、選單、狀態及畫面模型 |
 | `Services/ModuleService.cs` | 資料維護、欄位驗證與分頁查詢 |
 | `Services/Business.cs` | 租約、收款、水電與比例計租規則 |
+| `Services/PropertySceneService.cs` | 空間狀態、樓層分組與逾期帳款彙整 |
 | `Controllers/ManageController.cs` | CRUD 與按月出帳路由 |
 | `Controllers/HomeController.cs` | 營運指標與趨勢資料 |
 | `Views/Manage` | 清單、編輯及刪除確認 |
 | `wwwroot/css/site.css` | 管理介面與響應式樣式 |
+| `wwwroot/js/property-scene.js` | 3D 建物、樓層、單位互動及清單備援 |
+| `wwwroot/vendor/three/` | 固定版本的 Three.js 0.186.1 與 MIT 授權，無外部 CDN 依賴 |
 | `tests/smoke.py` | 獨立資料庫的 HTTP 整合驗收 |
 | `docs/開發規範.md` | 完整產品決策、資料規則與後續範圍 |
 

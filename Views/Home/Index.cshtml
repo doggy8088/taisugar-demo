@@ -15,6 +15,7 @@
 <article class="stat-card"><div class="stat-top">本月實收租金<span class="stat-icon"><svg><use href="#i-receipt"/></svg></span></div><div class="stat-number"><small>NT$</small> <span class="count-up" data-value="@(Model.Received.ToString(culture))" data-decimals="0"><span class="count-final">@(Model.Received.ToString("N0"))</span><span class="count-current" aria-hidden="true"></span></span></div><div class="stat-bottom"><span class="green-text">依收款日期統計</span></div></article>
 <article class="stat-card"><div class="stat-top">目前逾期未收<span class="stat-icon warm"><svg><use href="#i-file"/></svg></span></div><div class="stat-number"><small>NT$</small> <span class="count-up" data-value="@(Model.Outstanding.ToString(culture))" data-decimals="0"><span class="count-final">@(Model.Outstanding.ToString("N0"))</span><span class="count-current" aria-hidden="true"></span></span></div><div class="stat-bottom"><a class="amber-text" href="/manage/invoices">查看應收帳款 →</a></div></article>
 </section>
+<partial name="_PropertyScene" model="Model" />
 <div class="dashboard-grid">
     <section class="panel chart-panel" data-motion="trend">
         <div class="panel-heading">
@@ -66,4 +67,9 @@
 
 @section Scripts {
     <script src="~/js/dashboard.js" asp-append-version="true" defer></script>
+    <!script type="importmap">{"imports":{"three":"/vendor/three/three.module.js"}}</!script>
+    <script type="module" src="~/js/property-scene.js" asp-append-version="true"></script>
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/property-scene.css" asp-append-version="true" />
 }

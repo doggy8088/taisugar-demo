@@ -125,11 +125,18 @@ public class ControllersTests
         Assert.Single(model.Expiring);
         Assert.Single(model.Unpaid);
         Assert.Equal(2, model.Portfolio.Count);
+        Assert.Equal(today, model.SceneSnapshot);
+        Assert.Equal(2, model.SceneAssets.Count);
+        var sceneUnit = Assert.Single(model.SceneAssets[0].Units, x => x.Id == 3);
+        Assert.Equal("甲公司", sceneUnit.Tenant);
+        Assert.Equal(20000m, sceneUnit.Outstanding);
+        Assert.Equal("停用", Assert.Single(model.SceneAssets[1].Units).Status);
 
         // 測試指定歷史月份與 Error Action
         var pastResult = Assert.IsType<ViewResult>(await controller.Index(currentMonth.AddMonths(-1).ToString("yyyy-MM")));
         var pastModel = Assert.IsType<DashboardModel>(pastResult.Model);
         Assert.Equal(currentMonth.AddMonths(-1), pastModel.Month);
+        Assert.Equal(currentMonth.AddDays(-1), pastModel.SceneSnapshot);
 
         var errorResult = Assert.IsType<ViewResult>(controller.Error());
         var errorModel = Assert.IsType<ErrorViewModel>(errorResult.Model);

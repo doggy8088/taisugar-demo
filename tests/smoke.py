@@ -4,6 +4,8 @@ Run `dotnet build` then `python3 tests/smoke.py`. No third-party Python packages
 """
 import datetime as dt
 import html
+import json
+import re
 from html.parser import HTMLParser
 import http.cookiejar
 import os
@@ -73,6 +75,20 @@ def main():
                 except (OSError, urllib.error.URLError): pass
                 time.sleep(.1)
             else: raise RuntimeError('Startup timed out')
+            status, dashboard = request('/')
+            check(status == 200 and 'id="property-scene"' in dashboard and 'id="property-canvas"' in dashboard,
+                  'dashboard offers an interactive property scene')
+            scene_match = re.search(r'<script type="application/json" id="property-scene-data">(.*?)</script>', dashboard, re.S)
+            check(scene_match is not None, 'property scene data is available to the browser')
+            scene_data = json.loads(scene_match.group(1))
+            check(len(scene_data) == count('Assets') and sum(len(a['units']) for a in scene_data) == count('Units'),
+                  'property scene includes actual assets and units')
+            check('data-select-asset=' in dashboard and 'data-select-unit=' in dashboard and '/manage/units/edit/' in dashboard,
+                  'property navigation remains available without WebGL')
+            check(request('/js/property-scene.js')[0] == 200 and request('/vendor/three/three.module.js')[0] == 200,
+                  '3D application and engine are served locally')
+            check('<script type="importmap">' in dashboard,
+                  'browser receives the import map required by the 3D engine')
             for module in ['assets','units','tenants','leases','meters','readings','invoices','payments','einvoices']:
                 check(request('/manage/'+module)[0] == 200, f'{module} list renders')
                 form(module)
@@ -86,9 +102,13 @@ def main():
             check(request('/manage/unknown')[0] == 404, 'unknown module rejected')
             check(request('/manage/assets/edit/2147483000')[0] == 404, 'unknown record rejected')
             check(request('/manage/assets/save/0', {'Code':'CSRF'})[0] == 400, 'missing antiforgery token rejected')
-            data = form('assets'); data.update(Code='QA-ASSET',Name='測試資產',Address='測試路 1 號',Company='測試公司',Manager='測試員',Area='25.75')
+            scene_name = '測試資產</script><script>alert(1)</script>'
+            data = form('assets'); data.update(Code='QA-ASSET',Name=scene_name,Address='測試路 1 號',Company='測試公司',Manager='測試員',Area='25.75')
             check(save('assets',data)[0] == 200 and row('Assets','QA-ASSET') is not None, 'create asset persisted')
             asset = row('Assets','QA-ASSET'); aid=asset['Id']
+            scene_payload = re.search(r'<script type="application/json" id="property-scene-data">(.*?)</script>', request('/')[1], re.S).group(1)
+            check('</script' not in scene_payload.lower() and next(a for a in json.loads(scene_payload) if a['id'] == aid)['name'] == scene_name,
+                  'scene JSON safely preserves names containing script markup')
             check(asset['Area'] == 2575, 'decimal values stored without floating-point loss')
             data = form('assets'); data.update(Code='QA-ASSET',Name='重複',Address='測試',Company='測試',Manager='測試',Area='1')
             check(save('assets',data)[0] == 422, 'duplicate code blocked')
