@@ -1,0 +1,4 @@
+interface:
+  display_name: "OWASP Top 10 安全檢核"
+  short_description: "依 OWASP 十大風險檢核程式碼與設定，提供可追溯證據、風險排序及修正建議"
+  default_prompt: "使用 $owasp-top10-check 檢核目前專案，依 OWASP Top 10 提供繁體中文的風險報告、證據與修正建議。"
