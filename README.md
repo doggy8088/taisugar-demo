@@ -4,9 +4,14 @@
 
 **本機啟動**
 
-需要 .NET 10 SDK；整合測試另需 Python 3，不需要額外 Python 套件。
+需要 .NET 10 SDK；整合測試另需 Python 3，不需要額外 Python 套件。亦可直接使用 `make` 執行常用指令（輸入 `make help` 查看清單）。
 
 ```sh
+# 使用 Makefile（推薦）
+make restore
+make run
+
+# 或直接使用 .NET CLI
 dotnet restore
 dotnet run --launch-profile http
 ```
@@ -42,7 +47,16 @@ dotnet run --launch-profile http
 **驗證**
 
 ```sh
+# 執行所有測試（單元測試 + 端到端整合測試）
+make test-all
+
+# 或分開執行
+make test      # xUnit 與前端 JS 單元測試
+make smoke     # 端到端 HTTP 整合測試
+
+# 亦可直接呼叫指令
 dotnet build
+dotnet test tests/PropertyManagement.Tests/PropertyManagement.Tests.csproj
 python3 tests/smoke.py
 ```
 
