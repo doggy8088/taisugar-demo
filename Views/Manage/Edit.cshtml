@@ -9,7 +9,7 @@
 <div class="form-grid">
 @foreach(var f in m.Fields){<div class="field @(f.Kind=="textarea"?"full":"")"><label for="@f.Key">@f.Label @if(f.Required){<span class="required" aria-label="必填">*</span>}</label>
 @if(f.Kind=="select"||f.Kind=="reference"){
-<select id="@f.Key" name="@f.Key" required="@f.Required"><option value="">請選擇@f.Label</option>@if(f.Choices!=null){foreach(var choice in f.Choices){<option value="@choice" selected="@(Model.Value(f.Key)==choice)">@choice</option>}}else if(Model.Options.TryGetValue(f.Key,out var options)){foreach(var option in options){<option value="@option.Value" selected="@(Model.Value(f.Key)==option.Value)">@option.Label</option>}}</select>
+<select id="@f.Key" name="@f.Key" required="@f.Required"><option value="">請選擇@(f.Label)</option>@if(f.Choices!=null){foreach(var choice in f.Choices){<option value="@choice" selected="@(Model.Value(f.Key)==choice)">@choice</option>}}else if(Model.Options.TryGetValue(f.Key,out var options)){foreach(var option in options){<option value="@option.Value" selected="@(Model.Value(f.Key)==option.Value)">@option.Label</option>}}</select>
 @if(f.Reference!=null){<small>找不到資料？<a href="/manage/@f.Reference/create">新增相關資料</a>（離開前請先儲存）</small>}
 }else if(f.Kind=="textarea"){<textarea id="@f.Key" name="@f.Key" rows="4" maxlength="2000">@Model.Value(f.Key)</textarea>}
 else{<input id="@f.Key" name="@f.Key" type="@(f.Kind=="integer"?"number":f.Kind)" value="@Model.Value(f.Key)" required="@f.Required" maxlength="@(f.Key=="Code"?40:f.Key=="Name"?120:2000)" min="@(f.Kind is "number" or "integer"?"0":null)" step="@(f.Kind=="integer"?"1":f.Kind=="number"?"0.01":null)"/>}

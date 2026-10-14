@@ -56,7 +56,7 @@ def main():
             except urllib.error.HTTPError as ex: return ex.code, html.unescape(ex.read().decode())
         def form(module, id=0):
             status, body = request(f'/manage/{module}/'+(f'edit/{id}' if id else 'create'))
-            check(status == 200, f'{module} form available')
+            check(status == 200 and '@f.Label' not in body and '請選擇狀態' in body, f'{module} form available')
             p = FormParser(); p.feed(body); return p.values
         def save(module, values, id=0): return request(f'/manage/{module}/save/{id}', values)
         def row(table, code):
